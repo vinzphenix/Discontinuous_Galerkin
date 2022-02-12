@@ -4,26 +4,37 @@ import matplotlib.pyplot as plt
 from scipy.special import legendre
 from matplotlib.animation import FuncAnimation
 
+table = [
+    [1.0000, 1.0000, 1.2564, 1.3926, 1.6085],
+    [0, 0.3333, 0.4096, 0.4642, 0.5348],
+    [0, 0, 0.2098, 0.2352, 0.2716],
+    [0, 0, 0.1301, 0.1454, 0.1679],
+    [0, 0, 0.0897, 0.1000, 0.1155],
+    [0, 0, 0.0661, 0.0736, 0.0851],
+    [0, 0, 0.0510, 0.0568, 0.0656],
+    [0, 0, 0.0407, 0.0453, 0.0523],
+    [0, 0, 0.0334, 0.0371, 0.0428],
+    [0, 0, 0.0279, 0.0310, 0.0358],
+    [0, 0, 0.0237, 0.0264, 0.0304]
+]
+
 
 def fwd_euler(u, Q, dt, m):
-
-    for i in range(m-1):
+    for i in range(m - 1):
         u[i + 1] = u[i] + dt * Q.dot(u[i])
 
     return u
 
 
 def rk22(u, Q, dt, m):
-
-    for i in range(m-1):
+    for i in range(m - 1):
         u[i + 1] = u[i] + dt * Q.dot(u[i] + dt / 2. * Q.dot(u[i]))
 
     return u
 
 
 def rk44(u, Q, dt, m):
-
-    for i in range(m-1):
+    for i in range(m - 1):
         K1 = Q.dot(u[i])
         K2 = Q.dot(u[i] + K1 * dt / 2.)
         K3 = Q.dot(u[i] + K2 * dt / 2.)
@@ -69,8 +80,6 @@ def build_matrix(n, p, a):
         blocks.append(this_row)
 
     L = sp.bmat(blocks, format='bsr')
-
-    np.savetxt("matrix.txt", L.toarray(), fmt="%6.2f")
     return L
 
 
@@ -86,17 +95,16 @@ def compute_coefficients(f, L, n, p):
         for i in range(p + 1):
             for l in range(5):
                 xsi = middle + s[l] * dx / 2.
-                u[k, i] += w[l] / 2. * f(xsi) * psi[i](s[l])
+                u[k, i] += w[l] * 1. / 2. * f(xsi) * psi[i](s[l])
             u[k, i] *= (2 * i + 1)
 
     return u.reshape(n * (p + 1))
 
 
 def advection1d(L, n, dt, m, p, c, f, a, rktype, anim=False):
-
-    mass_matrix = sp.diags([np.tile(np.linspace(1, 2 * p + 1, p + 1), n)], [0], format='bsr')
+    inv_mass_matrix = sp.diags([np.tile(np.linspace(1, 2 * p + 1, p + 1), n)], [0], format='bsr')
     stiff_matrix = build_matrix(n, p, a)
-    Q = -c * n / L * mass_matrix.dot(stiff_matrix)
+    Q = -c * n / L * inv_mass_matrix.dot(stiff_matrix)
 
     u = np.zeros((m, n * (p + 1)))
     u[0] = compute_coefficients(f, L=L, n=n, p=p)
@@ -156,14 +164,25 @@ def plot_function(u, L, n, dt, m, p, c, f):
     lines = [ax.plot([], [], color='C0')[0] for _ in range(n)]
     exact, = ax.plot(full_x, f(full_x), color='C1', alpha=0.5, lw=5, zorder=0)
 
+    # to animate
     _ = FuncAnimation(fig, animate, m, interval=dt, blit=True, init_func=init, repeat_delay=3000)
+
+    # to get only one frame at t = i
+    # i = m //2 ; init() ; animate(i)
+
     plt.show()
 
 
 if __name__ == "__main__":
 
-    f1 = lambda x: np.cos(2 * np.pi * x) + 0.4 * np.cos(4 * np.pi * x) + 0.1 * np.sin(6 * np.pi * x)
-    f2 = lambda x: np.heaviside(np.fmod(np.fmod(x, 1.) + 1, 1.) - 0.5, 0.)
-    f3 = lambda x: np.arctan(np.abs(np.tan(np.pi * x)))
+    L_, n_, p_ = 1., 20, 3
+    c_, m_ = 1., 1000
+    dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
-    res = advection1d(L=1., n=20, dt=0.9 * 0.1454 * (1. / 20.), m=5000, p=3, c=1., f=f1, a=1., rktype='RK44', anim=True)
+    f1 = lambda x: np.cos(2 * np.pi * x / L_) + 0.4 * np.cos(4 * np.pi * x / L_) + 0.1 * np.sin(6 * np.pi * x / L_)
+    f2 = lambda x: np.arctan(np.abs(np.tan(np.pi * x / L_)))
+    f3 = lambda x: np.heaviside(np.fmod(np.fmod(x / L_, 1.) + 1, 1.) - 0.5, 0.)
+    f4 = lambda x: np.sin(2 * np.pi * x / L_)
+
+    # res = advection1d(L=1., n=20, dt=0.9 * 0.1454 * (1. / 20.), m=5000, p=3, c=1., f=f1, a=1., rktype='RK44', anim=True)
+    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f4, a=0., rktype='RK44', anim=True)

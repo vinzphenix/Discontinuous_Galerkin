@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 from scipy.special import legendre
+from scipy.signal import square
 from advection1d import advection1d, table
 
 ftSz1, ftSz2, ftSz3 = 20, 15, 12
@@ -104,54 +105,57 @@ def plot_stable_time_step(save=False):
         plt.show()
 
 
-def plot_behavior():
-    L, n, p, c, m = 1., 15, 3, 1., 1000
-    dt = 0.15 * table[p][3] / c * L / n
-    m = int(10. / dt)
-    flux_types = [[1], [1,0]]
-
-    f1 = lambda x: np.sin(2 * np.pi * x / L)
-    f2 = lambda x: np.heaviside(np.fmod(np.fmod(x / L, 1.) + 1, 1.) - 0.5, 0.)
-    f_list = [f1, f2]
-
+def plot_behavior(L, n, p, c, a_tpl, f_template, name="", save=False):
+    dt = 0.75 * table[p][3] / c * L / n
+    m = int(12.25 / dt) + 1
+    dx = L / n
     n_plot = 100
-    v = np.zeros((n, m, n_plot))
+
+    f = lambda x: f_template(x, L)
+
     r = np.linspace(-1, 1, n_plot)
     psi = np.array([legendre(i)(r) for i in range(p + 1)]).T
-    dx = L / n
     full_x = np.linspace(0, L, n * n_plot)
+    times = [0, m//2, m-1]
 
-    for l in range(2):
-        fig, axs = plt.subplots(len(flux_types[l]), 3, figsize=(12, 3 * len(flux_types[l])), constrained_layout=True)
-        flattened_ax = axs.flatten()
-        for j in range(len(flux_types[l])):
-            u = advection1d(L, n, dt, m, p, c, f=f_list[l], a=flux_types[l][j], rktype='RK44', anim=False)
+    fig, axs = plt.subplots(len(a_tpl), 3, figsize=(12, 3 * len(a_tpl)),
+                            constrained_layout=True, sharex='all', sharey='all')
+    for i, a in enumerate(a_tpl):
+        u = advection1d(L, n, dt, m, p, c, f=f, a=a, rktype='RK44', anim=False)
 
-            for i in range(3):
-                time_nb = i * (m-1) // 2
-                for k in range(n):
-                    middle = dx * (k + 1. / 2.)
-                    flattened_ax[3*j+i].plot(middle + r * dx / 2, np.dot(psi, u[:, k, time_nb]), color='C0')
-                flattened_ax[3*j+i].plot(full_x, f_list[l](full_x - c * dt * time_nb), color='C1', alpha=0.5, lw=5, zorder=0)
+        for j, t in enumerate(times):
+            axs[i, j].plot(full_x, f(full_x - c * dt * t), color='C1', alpha=0.5, lw=5, zorder=0)
+            for elem in range(n):
+                middle = dx * (elem + 1. / 2.)
+                axs[i, j].plot(middle + r * dx / 2, np.dot(psi, u[:, elem, t]), color='C0')
 
-        for ax in axs.flatten():
-            ax.grid(ls=':')
-        for i in range(len(flux_types[l])):
-            flattened_ax[i*3].set_ylabel(r"$u(x, t)$")
-        for i in range(3):
-            flattened_ax[i].set_title(r"t = {:.2f} s".format(i * (m-1) // 2 * dt))
-        for i in range(3):
-            flattened_ax[3*(len(flux_types[l]) - 1) + i].set_xlabel(r"$x$")
+    for ax in axs.flatten():
+        ax.grid(ls=':')
+    for ax, t in zip(axs[0, :], times):
+        ax.set_title(r"$t = {:.2f} \;s$".format(t * dt), fontsize=ftSz1)
+    for ax in axs[-1, :]:
+        ax.set_xlabel(r"$x$", fontsize=ftSz1)
+    for ax, a in zip(axs[:, 0], a_tpl):
+        ax.set_ylabel(r"$u(x, t)$".format(a), fontsize=ftSz1)
+    for ax, a in zip(axs[:, -1], a_tpl):
+        ax.set_ylabel(r"$a = {:.0f}$".format(a), fontsize=ftSz1)
+        ax.yaxis.set_label_position("right")
+
+    if save:
+        fig.savefig(f"{name}.svg", format="svg", bbox_inches='tight')
+    else:
         plt.show()
-
-    #fig.savefig("behavior_sine.svg", format="svg", bbox_inches='tight')
 
 
 if __name__ == "__main__":
-    save_global = False
+    save_global = True
     plt.rcParams["text.usetex"] = save_global
 
-    # plot_energy(save=save_global)
+    plot_energy(save=save_global)
     plot_stable_time_step(save=save_global)
 
-    plot_behavior()
+    f1_global = lambda x, L: np.sin(2. * np.pi * x / L)
+    f2_global = lambda x, L: square(2. * np.pi * x / L)
+    plot_behavior(L=1., n=10, p=1, c=1., a_tpl=(0., 1.), f_template=f1_global, name="sine_10_elems", save=save_global)
+    plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f_template=f1_global, name="sine_20_elems", save=save_global)
+    plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f_template=f2_global, name="square", save=save_global)

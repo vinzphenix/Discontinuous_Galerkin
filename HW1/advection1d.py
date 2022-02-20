@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
 from scipy.special import legendre
+from scipy.signal import square
 from matplotlib.animation import FuncAnimation
 
 table = [
@@ -176,13 +177,14 @@ def plot_function(u, L, n, dt, m, p, c, f):
 if __name__ == "__main__":
 
     L_, n_, p_ = 1., 20, 3
-    c_, m_ = 1., 1000
+    c_, m_ = 1., 2000
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
-    f1 = lambda x: np.cos(2 * np.pi * x / L_) + 0.4 * np.cos(4 * np.pi * x / L_) + 0.1 * np.sin(6 * np.pi * x / L_)
-    f2 = lambda x: np.arctan(np.abs(np.tan(np.pi * x / L_)))
-    f3 = lambda x: np.heaviside(np.fmod(np.fmod(x / L_, 1.) + 1, 1.) - 0.5, 0.)
-    f4 = lambda x: np.sin(2 * np.pi * x / L_)
+    f1 = lambda x: np.sin(2 * np.pi * x / L_)
+    f2 = lambda x: np.cos(2 * np.pi * x / L_) + 0.4 * np.cos(4 * np.pi * x / L_) + 0.1 * np.sin(6 * np.pi * x / L_)
+    f3 = lambda x: np.arctan(np.abs(np.tan(np.pi * x / L_)))
+    f4 = lambda x: np.heaviside(np.fmod(np.fmod(x / L_, 1.) + 1, 1.) - 0.5, 0.)
+    f5 = lambda x: square(2 * np.pi * x / L_, 1/3)
 
     # res = advection1d(L=1., n=20, dt=0.9 * 0.1454 * (1. / 20.), m=5000, p=3, c=1., f=f1, a=1., rktype='RK44', anim=True)
-    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f4, a=0., rktype='RK44', anim=True)
+    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f5, a=0., rktype='RK44', anim=True)

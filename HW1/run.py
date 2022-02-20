@@ -148,7 +148,7 @@ def plot_behavior(L, n, p, c, a_tpl, f_template, name="", save=False):
 
 
 if __name__ == "__main__":
-    save_global = True
+    save_global = False
     plt.rcParams["text.usetex"] = save_global
 
     plot_energy(save=save_global)

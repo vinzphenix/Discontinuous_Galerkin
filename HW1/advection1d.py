@@ -186,5 +186,4 @@ if __name__ == "__main__":
     f4 = lambda x: np.heaviside(np.fmod(np.fmod(x / L_, 1.) + 1, 1.) - 0.5, 0.)
     f5 = lambda x: square(2 * np.pi * x / L_, 1/3)
 
-    # res = advection1d(L=1., n=20, dt=0.9 * 0.1454 * (1. / 20.), m=5000, p=3, c=1., f=f1, a=1., rktype='RK44', anim=True)
     res = advection1d(L_, n_, dt_, m_, p_, c_, f=f5, a=0., rktype='RK44', anim=True)

@@ -30,11 +30,11 @@ def compute_energy(L, p, n, m, u):
     return energy
 
 
-def plot_energy(save=False):
+def plot_energy(T_end=2.5, save=False):
     L, n, p, c, m = 1., 10, 3, 1., 1000
     dt = 0.15 * table[p][3] / c * L / n
-    m = int(10. / dt)
-    print(f"{dt:.3e}")
+    m = int(T_end / dt)
+    # print(f"{dt:.3e}")
 
     f1 = lambda x: np.sin(2. * np.pi * x / L)
     f2 = lambda x: np.arctan(np.abs(np.tan(np.pi * x / L))) * 2. / np.pi
@@ -43,6 +43,7 @@ def plot_energy(save=False):
 
     t_array = np.linspace(0, m * dt, m)
     x_array = np.linspace(0, L, 500)
+    sample_rate = m // 1000 if m > 1000 else 1
 
     fig, axs = plt.subplots(3, 2, figsize=(10, 8), constrained_layout=True)
 
@@ -53,13 +54,8 @@ def plot_energy(save=False):
         for j, a in enumerate([0., 0.1, 0.5, 1.]):
             U = advection1d(L=L, n=n, dt=dt, m=m, p=p, c=c, f=f, a=a, rktype='RK44', anim=False)
             E = compute_energy(L, p, n, m, U)
-            axs[i, 1].plot(t_array, E, color='C'+str(j), label=r'$a={:.2f}$'.format(a))
+            axs[i, 1].plot(t_array[::sample_rate], E[::sample_rate], color='C'+str(j), label=r'$a={:.2f}$'.format(a))
             axs[i, 1].ticklabel_format(useOffset=False)
-            # if j != 0:
-            #     E_min, E_max = min(E_min, np.amin(E)), max(E_max, np.amax(E))
-
-        # delta_E = E_max - E_min
-        # axs[i, 1].set_ylim(E_min - delta_E / 10., E_max + 11. / 10. * delta_E)
 
     for ax in axs.flatten():
         ax.grid(ls=':')
@@ -72,7 +68,7 @@ def plot_energy(save=False):
         ax.legend(fontsize=ftSz3)
 
     if save:
-        fig.savefig("energy_evolution_10_new.svg", format="svg", bbox_inches='tight')
+        fig.savefig("./Figures/energy_evolution_10_new.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -92,7 +88,7 @@ def plot_stable_time_step(save=False):
         intercept = model.intercept_
         order, = model.coef_
         # print("p = {:d} -> y = {:.3f} x  {:.3f}".format(p, np.exp(intercept), order))
-        print("p = {:d} -> y = {:.3f} x + {:.3f}".format(p, order, intercept))
+        print("\tp = {:d} -> y = {:.3f} x + {:.3f}".format(p, order, intercept))
 
     ax.legend(fontsize=ftSz3)
     ax.grid(ls=':')
@@ -100,7 +96,7 @@ def plot_stable_time_step(save=False):
     ax.set_ylabel(r"$\Delta t \;\; [s]$", fontsize=ftSz2)
 
     if save:
-        fig.savefig("stable_time_step.svg", format="svg", bbox_inches='tight')
+        fig.savefig("./Figures/stable_time_step.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -142,7 +138,7 @@ def plot_behavior(L, n, p, c, a_tpl, f_template, name="", save=False):
         ax.yaxis.set_label_position("right")
 
     if save:
-        fig.savefig(f"{name}.svg", format="svg", bbox_inches='tight')
+        fig.savefig(f"./Figures/{name}.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -151,11 +147,17 @@ if __name__ == "__main__":
     save_global = False
     plt.rcParams["text.usetex"] = save_global
 
-    plot_energy(save=save_global)
+    print("Stable Time step figure...")
     plot_stable_time_step(save=save_global)
 
     f1_global = lambda x, L: np.sin(2. * np.pi * x / L)
     f2_global = lambda x, L: square(2. * np.pi * x / L)
+    print("\nSine wave with an insufficient discretization...")
     plot_behavior(L=1., n=10, p=1, c=1., a_tpl=(0., 1.), f_template=f1_global, name="sine_10_elems", save=save_global)
+    print("Sine wave with a sufficient discretization...")
     plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f_template=f1_global, name="sine_20_elems", save=save_global)
+    print("Square wave...")
     plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f_template=f2_global, name="square", save=save_global)
+
+    print("\nEnergy evolution figure... (it might takes a few seconds)")
+    plot_energy(T_end=2.5, save=save_global)

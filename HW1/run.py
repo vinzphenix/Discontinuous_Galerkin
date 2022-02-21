@@ -160,4 +160,4 @@ if __name__ == "__main__":
     plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f_template=f2_global, name="square", save=save_global)
 
     print("\nEnergy evolution figure... (it might takes a few seconds)")
-    plot_energy(T_end=2.5, save=save_global)
+    plot_energy(T_end=3.0, save=save_global)

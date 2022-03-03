@@ -20,11 +20,11 @@ table = [
 ]
 
 
-global P_right
-global P_left
-global P_right2
-global P_left2
-global coef
+# global P_right
+# global P_left
+# global P_right2
+# global P_left2
+# global coef
 
 def local_dot(n, Q, a, M_inv, D, u):
     u_left = np.zeros((n,2))
@@ -39,7 +39,7 @@ def local_dot(n, Q, a, M_inv, D, u):
         if k != n-1:
             u_avg = coef[k] * u_right[k] + coef[k+1] * u_left[(k + 1)]
             u_jump = u_right[k] - u_left[(k + 1)]
-            flux_r = 1 / (coef[k+1] + coef[k]) * (u_avg + u_jump[::-1])
+            flux_r = 1 / (coef[k+1] + coef[k]) * (u_avg + a * u_jump[::-1])
         else:
             flux_r = np.zeros(2)
 
@@ -47,7 +47,7 @@ def local_dot(n, Q, a, M_inv, D, u):
         if k != 0:
             u_avg = coef[k] * u_left[k] + coef[k - 1] * u_right[k - 1]
             u_jump = -u_left[k] + u_right[k - 1]
-            flux_l = 1 / (coef[k] + coef[k-1]) * (u_avg + u_jump[::-1])
+            flux_l = 1 / (coef[k] + coef[k-1]) * (u_avg + a * u_jump[::-1])
         else:
             flux_l = np.zeros(2)
         F[k] = 1/Q[k] * (M_inv*(D @ u[k] - flux_r * P_right2 + flux_l * P_left2))[:,[1, 0]]
@@ -95,8 +95,8 @@ def build_matrix(n, p, a, eps, mu):
 
     global coef
     coef = np.zeros((n,2))
-    coef[:,0] = eps/mu
-    coef[:,1] = mu/eps
+    coef[:,0] = np.sqrt(eps/mu)
+    coef[:,1] = np.sqrt(mu/eps)
 
     return D
 
@@ -150,18 +150,22 @@ def plot_function(u, L, n, dt, m, p, f):
     def init():
         #exact.set_data(full_x, f(full_x))
         time_text.set_text(time_template.format(0))
-        for k, line in enumerate(lines):
+        for k, line in enumerate(lines_H):
             line.set_data(np.linspace(k * dx - L / 2, (k + 1) * dx - L / 2, n_plot), H[k, 0])
+        for k, line in enumerate(lines_E):
+            line.set_data(np.linspace(k * dx - L / 2, (k + 1) * dx - L / 2, n_plot), E[k, 0])
 
-        return tuple([*lines, exact, time_text])
+        return tuple([*lines_H, *lines_E, exact, time_text])
 
     def animate(t):
         #exact.set_ydata(f(full_x - c * dt * t))
         time_text.set_text(time_template.format(dt * t))
-        for k, line in enumerate(lines):
+        for k, line in enumerate(lines_H):
             line.set_ydata(H[k, t])
+        for k, line in enumerate(lines_E):
+            line.set_ydata(E[k, t])
 
-        return tuple([*lines, exact, time_text])
+        return tuple([*lines_H, *lines_E, exact, time_text])
 
     n_plot = 100
     E = np.zeros((n, m, n_plot))
@@ -185,19 +189,20 @@ def plot_function(u, L, n, dt, m, p, f):
     # plt.show()
 
 
-    fig, ax = plt.subplots(2, 1, figsize=(10, 6), constrained_layout=True)
+    fig, ax = plt.subplots(2, 1, figsize=(10, 6), constrained_layout=True, sharex='all')
     ax[0].grid(ls=':')
+    ax[1].grid(ls=':')
+
 
     time_template = r'$t = {:.2f} [s]$'
     time_text = ax[0].text(0.85, 0.92, '', fontsize=17, transform=ax[0].transAxes)
-    lines = [ax[0].plot([], [], color='C0')[0] for _ in range(n)]
+    lines_H = [ax[0].plot([], [], color='C0')[0] for _ in range(n)]
+    lines_E = [ax[1].plot([], [], color='C0')[0] for _ in range(n)]
     exact, = ax[0].plot(full_x, f[1](full_x), color='C1', alpha=0.5, lw=5, zorder=0)
 
-    # time_template = r'$t = {:.2f} [s]$'
-    # time_text = ax[1].text(0.85, 0.92, '', fontsize=17, transform=ax[1].transAxes)
-    # lines = [ax[1].plot([], [], color='C0')[0] for _ in range(n)]
-    # exact, = ax[1].plot(full_x, f(full_x), color='C1', alpha=0.5, lw=5, zorder=0)
-
+    ax[0].set_ylim(-1, 1)
+    ax[0].set_xlim(-L/2, L/2)
+    ax[1].set_ylim(-coef[0,1], coef[0,1])
     # to animate
     _ = FuncAnimation(fig, animate, m, interval=dt, blit=True, init_func=init, repeat_delay=3000)
 
@@ -209,14 +214,14 @@ def plot_function(u, L, n, dt, m, p, f):
 
 if __name__ == "__main__":
 
-    L_, n_, p_ = 1., 20, 3
-    c_, m_ = 1., 2000
+    L_, n_, p_ = 3e8, 20, 3
+    c_, m_ = 3e8, 2000
     eps0 = 8.85e-12 * np.ones(n_)
     mu0 = 4*np.pi *1e-7 *np.ones(n_)
-    dt_ = 0.5 * table[p_][3] * min(np.min(eps0), np.min(mu0)) * L_ / n_
+    dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
     E1 = lambda x: 0
-    H1 = lambda x: np.exp((-10*x/L_)**2)
+    H1 = lambda x: np.exp(-(10*x/L_)**2)
 
 
     res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, a=1., rktype='RK44', anim=True)

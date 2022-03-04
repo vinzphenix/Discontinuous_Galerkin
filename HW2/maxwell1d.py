@@ -148,24 +148,26 @@ def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, a, rktype, anim=False):
 
 def plot_function(u, L, n, dt, m, p, f):
     def init():
-        #exact.set_data(full_x, f(full_x))
+        exact_H.set_data(full_x, f[1](full_x))
+        exact_E.set_data(full_x, f[0](full_x))
         time_text.set_text(time_template.format(0))
         for k, line in enumerate(lines_H):
             line.set_data(np.linspace(k * dx - L / 2, (k + 1) * dx - L / 2, n_plot), H[k, 0])
         for k, line in enumerate(lines_E):
             line.set_data(np.linspace(k * dx - L / 2, (k + 1) * dx - L / 2, n_plot), E[k, 0])
 
-        return tuple([*lines_H, *lines_E, exact, time_text])
+        return tuple([*lines_H, *lines_E, exact_H, exact_E, time_text])
 
     def animate(t):
-        #exact.set_ydata(f(full_x - c * dt * t))
+        exact_H.set_ydata(1 / 2 * (f[1](full_x - c * dt * t) + f[1](full_x + c * dt * t)))
+        exact_E.set_ydata(Z / 2 * (f[1](full_x - c * dt * t) - f[1](full_x + c * dt * t)))
         time_text.set_text(time_template.format(dt * t))
         for k, line in enumerate(lines_H):
             line.set_ydata(H[k, t])
         for k, line in enumerate(lines_E):
             line.set_ydata(E[k, t])
 
-        return tuple([*lines_H, *lines_E, exact, time_text])
+        return tuple([*lines_H, *lines_E, exact_H, exact_E, time_text])
 
     n_plot = 100
     E = np.zeros((n, m, n_plot))
@@ -173,6 +175,8 @@ def plot_function(u, L, n, dt, m, p, f):
     r = np.linspace(-1, 1, n_plot)
     psi = np.array([legendre(i)(r) for i in range(p + 1)]).T
     dx = L / n
+    c = 3e8
+    Z = coef[0,1]
     full_x = np.linspace(-L/2, L/2, n * n_plot)
 
     for time in range(m):
@@ -198,7 +202,8 @@ def plot_function(u, L, n, dt, m, p, f):
     time_text = ax[0].text(0.85, 0.92, '', fontsize=17, transform=ax[0].transAxes)
     lines_H = [ax[0].plot([], [], color='C0')[0] for _ in range(n)]
     lines_E = [ax[1].plot([], [], color='C0')[0] for _ in range(n)]
-    exact, = ax[0].plot(full_x, f[1](full_x), color='C1', alpha=0.5, lw=5, zorder=0)
+    exact_H, = ax[0].plot(full_x, f[1](full_x), color='C1', alpha=0.5, lw=5, zorder=0)
+    exact_E, = ax[1].plot(full_x, f[1](full_x), color='C1', alpha=0.5, lw=5, zorder=0)
 
     ax[0].set_ylim(-1, 1)
     ax[0].set_xlim(-L/2, L/2)

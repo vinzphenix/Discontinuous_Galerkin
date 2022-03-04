@@ -21,21 +21,21 @@ table = [
 
 
 def fwd_euler(u, Q, dt, m):
-    for i in range(m - 1):
+    for i in range(m):
         u[i + 1] = u[i] + dt * Q.dot(u[i])
 
     return u
 
 
 def rk22(u, Q, dt, m):
-    for i in range(m - 1):
+    for i in range(m):
         u[i + 1] = u[i] + dt * Q.dot(u[i] + dt / 2. * Q.dot(u[i]))
 
     return u
 
 
 def rk44(u, Q, dt, m):
-    for i in range(m - 1):
+    for i in range(m):
         K1 = Q.dot(u[i])
         K2 = Q.dot(u[i] + K1 * dt / 2.)
         K3 = Q.dot(u[i] + K2 * dt / 2.)
@@ -107,7 +107,7 @@ def advection1d(L, n, dt, m, p, c, f, a, rktype, anim=False):
     stiff_matrix = build_matrix(n, p, a)
     Q = -c * n / L * inv_mass_matrix.dot(stiff_matrix)
 
-    u = np.zeros((m, n * (p + 1)))
+    u = np.zeros((m + 1, n * (p + 1)))
     u[0] = compute_coefficients(f, L=L, n=n, p=p)
 
     if rktype == 'ForwardEuler':
@@ -120,7 +120,7 @@ def advection1d(L, n, dt, m, p, c, f, a, rktype, anim=False):
         print("The integration method should be 'ForwardEuler', 'RK22', 'RK44'")
         raise ValueError
 
-    u = u.T.reshape((n, p + 1, m))
+    u = u.T.reshape((n, p + 1, m + 1))
     u = np.swapaxes(u, 0, 1)
     if anim:
         plot_function(u, L=L, n=n, dt=dt, m=m, p=p, c=c, f=f)
@@ -133,7 +133,7 @@ def plot_function(u, L, n, dt, m, p, c, f):
         exact.set_data(full_x, f(full_x, L))
         time_text.set_text(time_template.format(0))
         for k, line in enumerate(lines):
-            line.set_data(np.linspace(k * dx, (k + 1) * dx, n_plot), v[k, 0])
+            line.set_data(np.linspace(k * dx, (k + 1) * dx, n_plot + 1), v[k, 0])
 
         return tuple([*lines, exact, time_text])
 
@@ -146,13 +146,13 @@ def plot_function(u, L, n, dt, m, p, c, f):
         return tuple([*lines, exact, time_text])
 
     n_plot = 100
-    v = np.zeros((n, m, n_plot))
-    r = np.linspace(-1, 1, n_plot)
+    v = np.zeros((n, m + 1, n_plot + 1))
+    r = np.linspace(-1, 1, n_plot + 1)
     psi = np.array([legendre(i)(r) for i in range(p + 1)]).T
     dx = L / n
-    full_x = np.linspace(0, L, n * n_plot)
+    full_x = np.linspace(0., L, n * n_plot + 1)
 
-    for time in range(m):
+    for time in range(m + 1):
         for elem in range(n):
             v[elem, time] = np.dot(psi, u[:, elem, time])
 
@@ -167,24 +167,26 @@ def plot_function(u, L, n, dt, m, p, c, f):
     ax.set_ylim(1.25 * np.array(ax.get_ylim()))
 
     # to animate
-    _ = FuncAnimation(fig, animate, m, interval=dt, blit=True, init_func=init, repeat_delay=3000)
+    _ = FuncAnimation(fig, animate, m + 1, interval=dt, blit=True, init_func=init, repeat=False, repeat_delay=3000)
 
     # to get only one frame at t = i
-    # i = m //2 ; init() ; animate(i)
+    # i = m ; init() ; animate(i)
 
     plt.show()
 
 
 if __name__ == "__main__":
 
-    L_, n_, p_ = 10., 20, 3
-    c_, m_ = 1., 2000
+    L_, n_, p_ = 1., 32, 3
+    c_ = 1.
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
+    # dt_ = 0.002
+    m_ = int(1. / dt_)
 
-    f1 = lambda x, L: np.sin(2 * np.pi * x / L)
+    f1 = lambda x, L: np.sin(2 * 32 * np.pi * x / L)
     f2 = lambda x, L: np.cos(2 * np.pi * x / L) + 0.4 * np.cos(4 * np.pi * x / L) + 0.1 * np.sin(6 * np.pi * x / L)
     f3 = lambda x, L: np.arctan(np.abs(np.tan(np.pi * x / L)))
     f4 = lambda x, L: np.heaviside(np.fmod(np.fmod(x / L, 1.) + 1, 1.) - 0.5, 0.)
     f5 = lambda x, L: square(2 * np.pi * x / L, 1/3)
 
-    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f5, a=1., rktype='RK44', anim=True)
+    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f1, a=1., rktype='RK44', anim=True)

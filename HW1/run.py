@@ -17,9 +17,9 @@ def compute_energy(L, p, n, m, u):
     dx = L / n
     psi = [legendre(i) for i in range(p + 1)]
 
-    energy = np.zeros(m)
+    energy = np.zeros(m + 1)
 
-    for j in range(m):
+    for j in range(m + 1):
         for k in range(n):
             for l in range(5):
                 tmp = 0.
@@ -31,29 +31,29 @@ def compute_energy(L, p, n, m, u):
 
 
 def plot_energy(T_end=2.5, save=False):
-    L, n, p, c, m = 1., 10, 3, 1., 1000
-    dt = 0.15 * table[p][3] / c * L / n
+    L_, n, p, c, m = 1., 10, 3, 1., 1000
+    dt = 0.15 * table[p][3] / c * L_ / n
     m = int(T_end / dt)
     # print(f"{dt:.3e}")
 
-    f1 = lambda x: np.sin(2. * np.pi * x / L)
-    f2 = lambda x: np.arctan(np.abs(np.tan(np.pi * x / L))) * 2. / np.pi
-    f3 = lambda x: np.heaviside(np.fmod(np.fmod(x / L, 1.) + 1, 1.) - 0.5, 0.)
+    f1 = lambda x, L: np.sin(2. * np.pi * x / L)
+    f2 = lambda x, L: np.arctan(np.abs(np.tan(np.pi * x / L))) * 2. / np.pi
+    f3 = lambda x, L: np.heaviside(np.fmod(np.fmod(x / L, 1.) + 1, 1.) - 0.5, 0.)
     f_list = [f1, f2, f3]
 
-    t_array = np.linspace(0, m * dt, m)
-    x_array = np.linspace(0, L, 500)
-    sample_rate = m // 1000 if m > 1000 else 1
+    t_array = np.linspace(0, m * dt, m + 1)
+    x_array = np.linspace(0, L_, 500)
+    sample_rate = (m+1) // 1000 if (m+1) > 1000 else 1
 
     fig, axs = plt.subplots(3, 2, figsize=(10, 8), constrained_layout=True)
 
     for i, f in enumerate(f_list):
-        axs[i, 0].plot(x_array, f(x_array), color='black')
+        axs[i, 0].plot(x_array, f(x_array, L_), color='black')
         # E_min, E_max = np.inf, -np.inf
         # for j, a in enumerate([-0.01, 0., 0.1, 0.5, 1.]):
         for j, a in enumerate([0., 0.1, 0.5, 1.]):
-            U = advection1d(L=L, n=n, dt=dt, m=m, p=p, c=c, f=f, a=a, rktype='RK44', anim=False)
-            E = compute_energy(L, p, n, m, U)
+            U = advection1d(L=L_, n=n, dt=dt, m=m, p=p, c=c, f=f, a=a, rktype='RK44', anim=False)
+            E = compute_energy(L_, p, n, m, U)
             axs[i, 1].plot(t_array[::sample_rate], E[::sample_rate], color='C'+str(j), label=r'$a={:.2f}$'.format(a))
             axs[i, 1].ticklabel_format(useOffset=False)
 
@@ -101,18 +101,16 @@ def plot_stable_time_step(save=False):
         plt.show()
 
 
-def plot_behavior(L, n, p, c, a_tpl, f_template, name="", save=False):
+def plot_behavior(L, n, p, c, a_tpl, f, name="", save=False):
     dt = 0.75 * table[p][3] / c * L / n
-    m = int(12.25 / dt) + 1
+    m = int(12.25 / dt)
     dx = L / n
     n_plot = 100
-
-    f = lambda x: f_template(x, L)
 
     r = np.linspace(-1, 1, n_plot)
     psi = np.array([legendre(i)(r) for i in range(p + 1)]).T
     full_x = np.linspace(0, L, n * n_plot)
-    times = [0, m//2, m-1]
+    times = [0, m//2, m]
 
     fig, axs = plt.subplots(len(a_tpl), 3, figsize=(12, 3 * len(a_tpl)),
                             constrained_layout=True, sharex='all', sharey='all')
@@ -120,7 +118,7 @@ def plot_behavior(L, n, p, c, a_tpl, f_template, name="", save=False):
         u = advection1d(L, n, dt, m, p, c, f=f, a=a, rktype='RK44', anim=False)
 
         for j, t in enumerate(times):
-            axs[i, j].plot(full_x, f(full_x - c * dt * t), color='C1', alpha=0.5, lw=5, zorder=0)
+            axs[i, j].plot(full_x, f(full_x - c * dt * t, L), color='C1', alpha=0.5, lw=5, zorder=0)
             for elem in range(n):
                 middle = dx * (elem + 1. / 2.)
                 axs[i, j].plot(middle + r * dx / 2, np.dot(psi, u[:, elem, t]), color='C0')
@@ -153,11 +151,11 @@ if __name__ == "__main__":
     f1_global = lambda x, L: np.sin(2. * np.pi * x / L)
     f2_global = lambda x, L: square(2. * np.pi * x / L)
     print("\nSine wave with an insufficient discretization...")
-    plot_behavior(L=1., n=10, p=1, c=1., a_tpl=(0., 1.), f_template=f1_global, name="sine_10_elems", save=save_global)
+    plot_behavior(L=1., n=10, p=1, c=1., a_tpl=(0., 1.), f=f1_global, name="sine_10_elems", save=save_global)
     print("Sine wave with a sufficient discretization...")
-    plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f_template=f1_global, name="sine_20_elems", save=save_global)
+    plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f=f1_global, name="sine_20_elems", save=save_global)
     print("Square wave...")
-    plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f_template=f2_global, name="square", save=save_global)
+    plot_behavior(L=1., n=20, p=3, c=1., a_tpl=(0., 1.), f=f2_global, name="square", save=save_global)
 
     print("\nEnergy evolution figure... (it might takes a few seconds)")
     plot_energy(T_end=3.0, save=save_global)

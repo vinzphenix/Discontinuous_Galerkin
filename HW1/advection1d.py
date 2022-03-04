@@ -96,7 +96,7 @@ def compute_coefficients(f, L, n, p):
         for i in range(p + 1):
             for l in range(5):
                 xsi = middle + s[l] * dx / 2.
-                u[k, i] += w[l] * 1. / 2. * f(xsi) * psi[i](s[l])
+                u[k, i] += w[l] * 1. / 2. * f(xsi, L) * psi[i](s[l])
             u[k, i] *= (2 * i + 1)
 
     return u.reshape(n * (p + 1))
@@ -130,7 +130,7 @@ def advection1d(L, n, dt, m, p, c, f, a, rktype, anim=False):
 
 def plot_function(u, L, n, dt, m, p, c, f):
     def init():
-        exact.set_data(full_x, f(full_x))
+        exact.set_data(full_x, f(full_x, L))
         time_text.set_text(time_template.format(0))
         for k, line in enumerate(lines):
             line.set_data(np.linspace(k * dx, (k + 1) * dx, n_plot), v[k, 0])
@@ -138,7 +138,7 @@ def plot_function(u, L, n, dt, m, p, c, f):
         return tuple([*lines, exact, time_text])
 
     def animate(t):
-        exact.set_ydata(f(full_x - c * dt * t))
+        exact.set_ydata(f(full_x - c * dt * t, L))
         time_text.set_text(time_template.format(dt * t))
         for k, line in enumerate(lines):
             line.set_ydata(v[k, t])
@@ -163,7 +163,8 @@ def plot_function(u, L, n, dt, m, p, c, f):
     time_text = ax.text(0.85, 0.92, '', fontsize=17, transform=ax.transAxes)
 
     lines = [ax.plot([], [], color='C0')[0] for _ in range(n)]
-    exact, = ax.plot(full_x, f(full_x), color='C1', alpha=0.5, lw=5, zorder=0)
+    exact, = ax.plot(full_x, f(full_x, L), color='C1', alpha=0.5, lw=5, zorder=0)
+    ax.set_ylim(1.25 * np.array(ax.get_ylim()))
 
     # to animate
     _ = FuncAnimation(fig, animate, m, interval=dt, blit=True, init_func=init, repeat_delay=3000)
@@ -176,14 +177,14 @@ def plot_function(u, L, n, dt, m, p, c, f):
 
 if __name__ == "__main__":
 
-    L_, n_, p_ = 1., 20, 3
+    L_, n_, p_ = 10., 20, 3
     c_, m_ = 1., 2000
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
-    f1 = lambda x: np.sin(2 * np.pi * x / L_)
-    f2 = lambda x: np.cos(2 * np.pi * x / L_) + 0.4 * np.cos(4 * np.pi * x / L_) + 0.1 * np.sin(6 * np.pi * x / L_)
-    f3 = lambda x: np.arctan(np.abs(np.tan(np.pi * x / L_)))
-    f4 = lambda x: np.heaviside(np.fmod(np.fmod(x / L_, 1.) + 1, 1.) - 0.5, 0.)
-    f5 = lambda x: square(2 * np.pi * x / L_, 1/3)
+    f1 = lambda x, L: np.sin(2 * np.pi * x / L)
+    f2 = lambda x, L: np.cos(2 * np.pi * x / L) + 0.4 * np.cos(4 * np.pi * x / L) + 0.1 * np.sin(6 * np.pi * x / L)
+    f3 = lambda x, L: np.arctan(np.abs(np.tan(np.pi * x / L)))
+    f4 = lambda x, L: np.heaviside(np.fmod(np.fmod(x / L, 1.) + 1, 1.) - 0.5, 0.)
+    f5 = lambda x, L: square(2 * np.pi * x / L, 1/3)
 
-    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f5, a=0., rktype='RK44', anim=True)
+    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f5, a=1., rktype='RK44', anim=True)

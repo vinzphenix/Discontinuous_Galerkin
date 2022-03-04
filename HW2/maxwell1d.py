@@ -41,7 +41,7 @@ def local_dot(n, Q, a, M_inv, D, u):
             u_jump = u_right[k] - u_left[(k + 1)]
             flux_r = 1 / (coef[k+1] + coef[k]) * (u_avg + a * u_jump[::-1])
         else:
-            flux_r = np.zeros(2)
+            flux_r = [1, -1] * u_right[k]
 
         # Numerical flux at left interface
         if k != 0:
@@ -49,7 +49,7 @@ def local_dot(n, Q, a, M_inv, D, u):
             u_jump = -u_left[k] + u_right[k - 1]
             flux_l = 1 / (coef[k] + coef[k-1]) * (u_avg + a * u_jump[::-1])
         else:
-            flux_l = np.zeros(2)
+            flux_l = [1, -1] * u_left[k]
         F[k] = 1/Q[k] * (M_inv*(D @ u[k] - flux_r * P_right2 + flux_l * P_left2))[:,[1, 0]]
     return F
 

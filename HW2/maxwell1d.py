@@ -8,7 +8,6 @@ ftSz1, ftSz2, ftSz3 = 20, 15, 12
 plt.rcParams["text.usetex"] = False
 plt.rcParams['font.family'] = 'monospace'
 
-
 table = [
     [1.0000, 1.0000, 1.2564, 1.3926, 1.6085],
     [0, 0.3333, 0.4096, 0.4642, 0.5348],
@@ -23,66 +22,82 @@ table = [
     [0, 0, 0.0237, 0.0264, 0.0304]
 ]
 
+global P_right  # list of (1.)
+global P_left  # list of (-1)^i
+global P_right2  # matrix version of P_right
+global P_left2  # matrix version of P_left
+global coef  # first row is 1/Z, second row is Z
 
-global P_right
-global P_left
-global P_right2
-global P_left2
-global coef
 
+def local_dot(n, Q, a, M_inv, D, u, bctype):
+    # u has shape (2, (p + 1), 2 * n)
 
-def local_dot(n, Q, a, M_inv, D, u):
-    u_left = np.zeros((2, 2 * n))
-    u_right = np.zeros((2, 2 * n))
-    for j in range(2):
-        u_left[j] = np.dot(P_left, u[j])
-        u_right[j] = np.dot(P_right, u[j])
+    # u_left, u_right are the values of the fields on the left and right of each element
+    u_right = np.sum(u, axis=1)  # sum of the coefficients
+    u_left = np.sum(u[:, ::2], axis=1) - np.sum(u[:, 1::2], axis=1)  # alternating sum
 
-    F = np.zeros_like(u)
+    F = np.zeros_like(u)  # result of the dot product
     Zu_right = coef * u_right
     Zu_left = coef * u_left
-    Z_avg = coef[:,:-1] + coef[:,1:]
+    Z_avg = coef[:, :-1] + coef[:, 1:]  # 1/Z for the first row and Z for the second
 
     flux_right = np.zeros((2, 2 * n))
     flux_left = np.zeros((2, 2 * n))
 
     # Numerical flux at right interface
-    u_avg = Zu_right[:,:-1] + Zu_left[:,1:]
-    u_jump = u_right[:,:-1] - u_left[:,1:]
-    flux_right[:,:-1] = 1 / Z_avg * (u_avg + u_jump[::-1])
-    flux_right[:,-1] = [1, -1] * u_right[:,-1]
+    u_avg = Zu_right[:, :-1] + Zu_left[:, 1:]  # average of the discontinuity
+    u_jump = u_right[:, :-1] - u_left[:, 1:]  # difference of the discontinuity
+    flux_right[:, :-1] = 1 / Z_avg * (u_avg + a * u_jump[::-1])
 
     # Numerical flux at left interface
-    u_avg = Zu_left[:,1:] + Zu_right[:,:-1]
-    u_jump = - u_left[:,1:] + u_right[:,:-1]
-    flux_left[:,1:] = 1 / Z_avg * (u_avg + u_jump[::-1])
-    flux_left[:,0] = [1, -1] * u_left[:,0]
+    u_avg = Zu_left[:, 1:] + Zu_right[:, :-1]
+    u_jump = - u_left[:, 1:] + u_right[:, :-1]
+    flux_left[:, 1:] = 1 / Z_avg * (u_avg + a * u_jump[::-1])
 
-    for j in range(2):
-        F[j] = 1 / Q[j] * (M_inv * (D @ u[(j+1)%2] - flux_right[(j+1)%2] * P_right2 + flux_left[(j+1)%2] * P_left2))
+    # handle boundary cases
+    if bctype == "periodic":
+        Z_avg = coef[:, 0] + coef[:, -1]
+        u_avg = Zu_left[:, 0] + Zu_right[:, -1]
+        flux_right[:, -1] = 1 / Z_avg * u_avg  # no jump
+        flux_left[:, 0] = 1 / Z_avg * u_avg
+    elif bctype == "reflective":
+        flux_right[:, -1] = [1, -1] * u_right[:, -1]
+        flux_left[:, 0] = [1, -1] * u_left[:, 0]
+    elif bctype == "non-reflective":
+        flux_right[:, -1] = [1, -1] * u_right[:, -1]
+        flux_left[:, 0] = [1, -1] * u_left[:, 0]
+    else:
+        print("AIE : Unknown Boundary condition")
+        raise ValueError
+
+    F[0] = 1 / Q[0] * (M_inv * (D.dot(u[1]) - flux_right[1] * P_right2 + flux_left[1] * P_left2))
+    F[1] = 1 / Q[1] * (M_inv * (D.dot(u[0]) - flux_right[0] * P_right2 + flux_left[0] * P_left2))
+
     return F
 
 
-def fwd_euler(u, dt, m, n, Q, a, M_inv, D):
+def fwd_euler(u, dt, m, n, Q, a, M_inv, D, bctype):
     for i in range(m):
-        u[i + 1] = u[i] + dt * local_dot(n, Q, a, M_inv, D, u[i])
+        u[i + 1] = u[i] + dt * local_dot(n, Q, a, M_inv, D, u[i], bctype)
 
     return u
 
 
-def rk22(u, dt, m, n, Q, a, M_inv, D):
+def rk22(u, dt, m, n, Q, a, M_inv, D, bctype):
     for i in range(m):
-        u[i + 1] = u[i] + dt * local_dot(n, Q, a, M_inv, D, u[i] + dt / 2. * local_dot(n, Q, a, M_inv, D, u[i]))
+        K1 = local_dot(n, Q, a, M_inv, D, u[i], bctype)
+        K2 = local_dot(n, Q, a, M_inv, D, u[i] + dt / 2. * K1, bctype)
+        u[i + 1] = u[i] + dt * K2
 
     return u
 
 
-def rk44(u, dt, m, n, Q, a, M_inv, D):
+def rk44(u, dt, m, n, Q, a, M_inv, D, bctype):
     for i in range(m):
-        K1 = local_dot(n, Q, a, M_inv, D, u[i])
-        K2 = local_dot(n, Q, a, M_inv, D, u[i] + K1 * dt / 2.)
-        K3 = local_dot(n, Q, a, M_inv, D, u[i] + K2 * dt / 2.)
-        K4 = local_dot(n, Q, a, M_inv, D, u[i] + K3 * dt)
+        K1 = local_dot(n, Q, a, M_inv, D, u[i], bctype)
+        K2 = local_dot(n, Q, a, M_inv, D, u[i] + K1 * dt / 2., bctype)
+        K3 = local_dot(n, Q, a, M_inv, D, u[i] + K2 * dt / 2., bctype)
+        K4 = local_dot(n, Q, a, M_inv, D, u[i] + K3 * dt, bctype)
         u[i + 1] = u[i] + dt * (K1 + 2 * K2 + 2 * K3 + K4) / 6.
 
     return u
@@ -127,7 +142,7 @@ def compute_coefficients(f0_list, L, n, p):
     return np.swapaxes(u, 0, 2)
 
 
-def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, a, rktype, anim=False):
+def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False):
     M_inv = (n / L * np.linspace(1, 2 * p + 1, p + 1)).reshape(-1, 1)
     D = build_matrix(n, p, eps, mu)
     Q = np.array([eps, mu])
@@ -136,11 +151,11 @@ def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, a, rktype, anim=False):
     u[0] = compute_coefficients(f0_list=[E0, H0], L=L, n=n, p=p)
 
     if rktype == 'ForwardEuler':
-        fwd_euler(u, dt, m, n, Q, a, M_inv, D)
+        fwd_euler(u, dt, m, n, Q, a, M_inv, D, bctype)
     elif rktype == 'RK22':
-        rk22(u, dt, m, n, Q, a, M_inv, D)
+        rk22(u, dt, m, n, Q, a, M_inv, D, bctype)
     elif rktype == 'RK44':
-        rk44(u, dt, m, n, Q, a, M_inv, D)
+        rk44(u, dt, m, n, Q, a, M_inv, D, bctype)
     else:
         print("The integration method should be 'ForwardEuler', 'RK22', 'RK44'")
         raise ValueError
@@ -168,13 +183,11 @@ def plot_function(u, L, n, dt, m, p, f0_list):
 
     def animate(t_idx):
         t = t_idx * dt
-        # completed because E(x, 0) could be nonzero
+        # mu0, eps0 should be functions of x to simulate different media
         v_1 = 0.5 / sqrt_mu0 * E0(full_x - c * t, L) + 0.5 / sqrt_eps0 * H0(full_x - c * t, L)
         v_2 = 0.5 / sqrt_mu0 * E0(full_x + c * t, L) - 0.5 / sqrt_eps0 * H0(full_x + c * t, L)
         exact_E.set_ydata(sqrt_mu0 * (v_1 + v_2))
         exact_H.set_ydata(sqrt_eps0 * (v_1 - v_2))
-        # exact_E.set_ydata(Z / 2 * (H0(full_x - c * t, L) - H0(full_x + c * t, L)))
-        # exact_H.set_ydata(1 / 2 * (H0(full_x - c * t, L) + H0(full_x + c * t, L)))
 
         time_text.set_text(time_template.format(t))
         for k, line in enumerate(lines_H):
@@ -186,27 +199,20 @@ def plot_function(u, L, n, dt, m, p, f0_list):
 
     E0, H0 = f0_list
 
-    n_plot = 100
-    E = np.zeros((2 * n, m+1, n_plot + 1))
-    H = np.zeros((2 * n, m+1, n_plot + 1))
+    n_plot = 25
+    E = np.zeros((2 * n, m + 1, n_plot + 1))
+    H = np.zeros((2 * n, m + 1, n_plot + 1))
     r = np.linspace(-1, 1, n_plot + 1)
     psi = np.array([legendre(i)(r) for i in range(p + 1)]).T
+    c = 1 / (sqrt_eps0 * sqrt_mu0)
     dx = L / n
-    c = 3e8
     # Z = coef[0, 1]
-    full_x = np.linspace(-L, L, 2 * n * n_plot + 1)
+    full_x = np.linspace(-L, L, 2 * n * n_plot + 1).flatten()
 
     for time in range(m + 1):
         for elem in range(2 * n):
-            H[elem, time] = np.dot(psi, u[1, :, elem, time])
             E[elem, time] = np.dot(psi, u[0, :, elem, time])
-
-    # #test plot
-    # fig, ax = plt.subplots(1, 1, figsize=(10, 6), constrained_layout=True, sharex='all', sharey='all')
-    # for elem in range(n):
-    #     middle = dx * (elem + 1. / 2.) - L / 2
-    #     ax.plot(middle + r * dx / 2, np.dot(psi, u[1,:, elem, 1]), color='C0')
-    # plt.show()
+            H[elem, time] = np.dot(psi, u[1, :, elem, time])
 
     fig, axs = plt.subplots(2, 1, figsize=(10, 6), constrained_layout=True, sharex='all')
 
@@ -214,8 +220,8 @@ def plot_function(u, L, n, dt, m, p, f0_list):
     time_text = axs[0].text(0.85, 0.90, '', fontsize=17, transform=axs[0].transAxes)
     lines_E = [axs[0].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
     lines_H = [axs[1].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
-    exact_E, = axs[0].plot(full_x, E0(full_x, L), color='C1', alpha=0.5, lw=5, zorder=0)
-    exact_H, = axs[1].plot(full_x, H0(full_x, L), color='C1', alpha=0.5, lw=5, zorder=0)
+    exact_E, = axs[0].plot(full_x, E0(full_x, L * np.ones_like(full_x)), color='C1', alpha=0.5, lw=5, zorder=0)
+    exact_H, = axs[1].plot(full_x, H0(full_x, L * np.ones_like(full_x)), color='C1', alpha=0.5, lw=5, zorder=0)
 
     scale = 1.15
     axs[0].set_xlim(-L, L)
@@ -229,25 +235,32 @@ def plot_function(u, L, n, dt, m, p, f0_list):
     axs[1].grid(ls=':')
 
     # to animate
-    _ = FuncAnimation(fig, animate, m + 1, interval=1e3*dt, blit=True, init_func=init, repeat_delay=3000)
+    _ = FuncAnimation(fig, animate, m + 1, interval=dt, blit=True, init_func=init, repeat_delay=3000)
 
     # to get only one frame at t = i
-    # i = m//5 ; init() ; animate(i)
+    # i = 0 ; init() ; animate(i)
 
     plt.show()
 
 
 if __name__ == "__main__":
+    sqrt_eps0, sqrt_mu0 = np.sqrt(8.8541878128e-12), np.sqrt(4.e-7 * np.pi)
+
     L_, n_, p_ = 3e8 / 2., 10, 3
-    c_, m_ = 3e8, 750
+    c_, m_ = 1 / (sqrt_eps0 * sqrt_mu0), 2000
     eps0 = 8.85e-12 * np.ones(2 * n_)
     mu0 = 4 * np.pi * 1e-7 * np.ones(2 * n_)
 
-    sqrt_eps0, sqrt_mu0 = np.sqrt(8.8541878128e-12), np.sqrt(4.e-7 * np.pi)
-    dt_ = 0.5 * table[p_][3] / c_ * L_ / (2 * n_)
+    dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
     E1 = lambda x, L: 0 * x
-    E2 = lambda x, L: -sqrt_mu0 / sqrt_eps0 * np.exp(-(10 * x / L_) ** 2)
-    H1 = lambda x, L: np.exp(-(10 * x / L_) ** 2)
+    E2 = lambda x, L: -sqrt_mu0 / sqrt_eps0 * np.exp(-(10 * x / L) ** 2)
+    H1 = lambda x, L: np.exp(-(10 * x / L) ** 2)
+    H2 = lambda x, L: (0.5 * np.cos(np.pi * x / L) + 0.5) * np.where(np.abs(x) <= L, 1., 0.)
+    H3 = lambda x, L: np.cos(2 * np.pi * 10. * x / L) * np.exp(-(10 * x / L) ** 2)  # needs 20 elems
+    H4 = lambda x, L: np.sin(2 * 5 * np.pi * x / L) * np.where(np.abs(x) <= L / 5., 1., 0.)
+    H5 = lambda x, L: np.sin(2 * np.pi * 5 * x / L) * np.where(np.abs(x - L / 2.) <= L / 10., 1., 0.)  # non symmetric
 
-    res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, a=1., rktype='RK44', anim=True)
+    # res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
+    # res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
+    res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)

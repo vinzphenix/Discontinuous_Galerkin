@@ -30,34 +30,28 @@ global coef  # first row is 1/Z, second row is Z
 
 
 def local_dot(n, Q, a, M_inv, D, u, bctype):
-    # u has shape (2, (p + 1), 2 * n)
+    # this "u" has shape (2, (p + 1), 2 * n)
 
     # u_left, u_right are the values of the fields on the left and right of each element
     u_right = np.sum(u, axis=1)  # sum of the coefficients
     u_left = np.sum(u[:, ::2], axis=1) - np.sum(u[:, 1::2], axis=1)  # alternating sum
 
-    F = np.zeros_like(u)  # result of the dot product
-    Zu_right = coef * u_right
-    Zu_left = coef * u_left
     Z_avg = coef[:, :-1] + coef[:, 1:]  # 1/Z for the first row and Z for the second
-
-    flux_right = np.zeros((2, 2 * n))
-    flux_left = np.zeros((2, 2 * n))
+    u_avg = (coef * u_right)[:, :-1] + (coef * u_left)[:, 1:]  # average of the discontinuity
+    u_jump = u_right[:, :-1] - u_left[:, 1:]  # difference of the discontinuity
 
     # Numerical flux at right interface
-    u_avg = Zu_right[:, :-1] + Zu_left[:, 1:]  # average of the discontinuity
-    u_jump = u_right[:, :-1] - u_left[:, 1:]  # difference of the discontinuity
-    flux_right[:, :-1] = 1 / Z_avg * (u_avg + a * u_jump[::-1])
+    flux_right = np.empty((2, 2 * n))
+    flux_right[:, :-1] = 1 / Z_avg * (u_avg + a * u_jump[::-1])  # u_jump[::-1] switches the fields E and H
 
     # Numerical flux at left interface
-    u_avg = Zu_left[:, 1:] + Zu_right[:, :-1]
-    u_jump = - u_left[:, 1:] + u_right[:, :-1]
+    flux_left = np.empty((2, 2 * n))
     flux_left[:, 1:] = 1 / Z_avg * (u_avg + a * u_jump[::-1])
 
     # handle boundary cases
     if bctype == "periodic":
         Z_avg = coef[:, 0] + coef[:, -1]
-        u_avg = Zu_left[:, 0] + Zu_right[:, -1]
+        u_avg = (coef * u_left)[:, 0] + (coef * u_right)[:, -1]
         flux_right[:, -1] = 1 / Z_avg * u_avg  # no jump
         flux_left[:, 0] = 1 / Z_avg * u_avg
     elif bctype == "reflective":
@@ -70,6 +64,7 @@ def local_dot(n, Q, a, M_inv, D, u, bctype):
         print("AIE : Unknown Boundary condition")
         raise ValueError
 
+    F = np.zeros_like(u)  # result of the dot product
     F[0] = 1 / Q[0] * (M_inv * (D.dot(u[1]) - flux_right[1] * P_right2 + flux_left[1] * P_left2))
     F[1] = 1 / Q[1] * (M_inv * (D.dot(u[0]) - flux_right[0] * P_right2 + flux_left[0] * P_left2))
 
@@ -261,6 +256,6 @@ if __name__ == "__main__":
     H4 = lambda x, L: np.sin(2 * 5 * np.pi * x / L) * np.where(np.abs(x) <= L / 5., 1., 0.)
     H5 = lambda x, L: np.sin(2 * np.pi * 5 * x / L) * np.where(np.abs(x - L / 2.) <= L / 10., 1., 0.)  # non symmetric
 
-    # res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
+    res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
     # res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
-    res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)
+    # res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)

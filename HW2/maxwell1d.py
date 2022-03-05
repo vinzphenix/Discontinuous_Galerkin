@@ -32,30 +32,34 @@ global coef
 
 
 def local_dot(n, Q, a, M_inv, D, u):
-    u_left = np.zeros((2 * n, 2))
-    u_right = np.zeros((2 * n, 2))
+    u_left = np.zeros((2, 2 * n))
+    u_right = np.zeros((2, 2 * n))
     for j in range(2):
-        u_left[:, j] = np.dot(u[:, :, j], P_left)
-        u_right[:, j] = np.dot(u[:, :, j], P_right)
+        u_left[j] = np.dot(P_left, u[j])
+        u_right[j] = np.dot(P_right, u[j])
 
     F = np.zeros_like(u)
-    for k in range(2 * n):
-        # Numerical flux at right interface
-        if k != 2 * n - 1:
-            u_avg = coef[k] * u_right[k] + coef[k + 1] * u_left[(k + 1)]
-            u_jump = u_right[k] - u_left[(k + 1)]
-            flux_r = 1 / (coef[k + 1] + coef[k]) * (u_avg + a * u_jump[::-1])
-        else:
-            flux_r = [1, -1] * u_right[k]
+    Zu_right = coef * u_right
+    Zu_left = coef * u_left
+    Z_avg = coef[:,:-1] + coef[:,1:]
 
-        # Numerical flux at left interface
-        if k != 0:
-            u_avg = coef[k] * u_left[k] + coef[k - 1] * u_right[k - 1]
-            u_jump = -u_left[k] + u_right[k - 1]
-            flux_l = 1 / (coef[k] + coef[k - 1]) * (u_avg + a * u_jump[::-1])
-        else:
-            flux_l = [1, -1] * u_left[k]
-        F[k] = 1 / Q[k] * (M_inv * (D @ u[k] - flux_r * P_right2 + flux_l * P_left2))[:, ::-1]
+    flux_right = np.zeros((2, 2 * n))
+    flux_left = np.zeros((2, 2 * n))
+
+    # Numerical flux at right interface
+    u_avg = Zu_right[:,:-1] + Zu_left[:,1:]
+    u_jump = u_right[:,:-1] - u_left[:,1:]
+    flux_right[:,:-1] = 1 / Z_avg * (u_avg + u_jump[::-1])
+    flux_right[:,-1] = [1, -1] * u_right[:,-1]
+
+    # Numerical flux at left interface
+    u_avg = Zu_left[:,1:] + Zu_right[:,:-1]
+    u_jump = - u_left[:,1:] + u_right[:,:-1]
+    flux_left[:,1:] = 1 / Z_avg * (u_avg + u_jump[::-1])
+    flux_left[:,0] = [1, -1] * u_left[:,0]
+
+    for j in range(2):
+        F[j] = 1 / Q[j] * (M_inv * (D @ u[(j+1)%2] - flux_right[(j+1)%2] * P_right2 + flux_left[(j+1)%2] * P_left2))
     return F
 
 
@@ -97,9 +101,9 @@ def build_matrix(n, p, eps, mu):
     P_left2 = P_left.reshape(-1, 1)
 
     global coef
-    coef = np.zeros((2 * n, 2))
-    coef[:, 0] = np.sqrt(eps / mu)
-    coef[:, 1] = np.sqrt(mu / eps)
+    coef = np.zeros((2, 2 * n))
+    coef[0] = np.sqrt(eps / mu)
+    coef[1] = np.sqrt(mu / eps)
 
     return D
 
@@ -120,15 +124,15 @@ def compute_coefficients(f0_list, L, n, p):
                     u[k, i, j] += w[l] * 1. / 2. * f0(xsi, L) * psi[i](s[l])
                 u[k, i, j] *= (2 * i + 1)
 
-    return u
+    return np.swapaxes(u, 0, 2)
 
 
 def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, a, rktype, anim=False):
     M_inv = (n / L * np.linspace(1, 2 * p + 1, p + 1)).reshape(-1, 1)
     D = build_matrix(n, p, eps, mu)
-    Q = np.array([eps, mu]).T
+    Q = np.array([eps, mu])
 
-    u = np.zeros((m + 1, 2 * n, (p + 1), 2))
+    u = np.zeros((m + 1, 2, (p + 1), 2 * n))
     u[0] = compute_coefficients(f0_list=[E0, H0], L=L, n=n, p=p)
 
     if rktype == 'ForwardEuler':
@@ -142,7 +146,8 @@ def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, a, rktype, anim=False):
         raise ValueError
 
     u = np.swapaxes(u, 0, 3)
-    u = np.swapaxes(u, 1, 2)
+    u = np.swapaxes(u, 0, 2)
+    u = np.swapaxes(u, 0, 1)
     if anim:
         plot_function(u, L=L, n=n, dt=dt, m=m, p=p, f0_list=[E0, H0])
 
@@ -214,7 +219,7 @@ def plot_function(u, L, n, dt, m, p, f0_list):
 
     scale = 1.15
     axs[0].set_xlim(-L, L)
-    axs[0].set_ylim(-scale * coef[0, 1], scale * coef[0, 1])
+    axs[0].set_ylim(-scale * coef[1, 1], scale * coef[1, 1])
     axs[1].set_ylim(-scale, scale)
 
     axs[0].set_ylabel(r"$E(x,t)$ [V/m]", fontsize=ftSz2)

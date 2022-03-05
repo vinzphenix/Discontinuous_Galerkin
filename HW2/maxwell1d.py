@@ -58,8 +58,8 @@ def local_dot(n, Q, a, M_inv, D, u, bctype):
         flux_right[:, -1] = [1, -1] * u_right[:, -1]
         flux_left[:, 0] = [1, -1] * u_left[:, 0]
     elif bctype == "non-reflective":
-        flux_right[:, -1] = [1, -1] * u_right[:, -1]
-        flux_left[:, 0] = [1, -1] * u_left[:, 0]
+        flux_right[:, -1] = 1 / 2 * np.array([[1, coef[1,-1]], [coef[0,-1], 1]]) @ u_right[:, -1]
+        flux_left[:, 0] = 1 / 2 * np.array([[1, -coef[1,0]], [-coef[0,0], 1]]) @ u_left[:, 0]
     else:
         print("AIE : Unknown Boundary condition")
         raise ValueError
@@ -256,6 +256,6 @@ if __name__ == "__main__":
     H4 = lambda x, L: np.sin(2 * 5 * np.pi * x / L) * np.where(np.abs(x) <= L / 5., 1., 0.)
     H5 = lambda x, L: np.sin(2 * np.pi * 5 * x / L) * np.where(np.abs(x - L / 2.) <= L / 10., 1., 0.)  # non symmetric
 
-    res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
+    #res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
     # res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
-    # res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)
+    res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)

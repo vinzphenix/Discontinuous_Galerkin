@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
-from scipy.special import legendre
+from scipy.special import legendre, roots_legendre
 from matplotlib.animation import FuncAnimation
 
 ftSz1, ftSz2, ftSz3 = 20, 15, 12
@@ -26,10 +26,10 @@ global P_right  # list of (1.)
 global P_left  # list of (-1)^i
 global P_right2  # matrix version of P_right
 global P_left2  # matrix version of P_left
-global coef  # first row is 1/Z, second row is Z
+global coef  # first row is sqrt(eps/mu), second row is sqrt(mu/eps)
 
 
-def local_dot(n, Q, a, M_inv, D, u, bctype):
+def local_dot(n, Q, a, M_inv, Stiff, u, bctype):
     # this "u" has shape (2, (p + 1), 2 * n)
 
     # u_left, u_right are the values of the fields on the left and right of each element
@@ -52,47 +52,48 @@ def local_dot(n, Q, a, M_inv, D, u, bctype):
     if bctype == "periodic":
         Z_avg = coef[:, 0] + coef[:, -1]
         u_avg = (coef * u_left)[:, 0] + (coef * u_right)[:, -1]
-        flux_right[:, -1] = 1 / Z_avg * u_avg  # no jump
-        flux_left[:, 0] = 1 / Z_avg * u_avg
+        u_jump = u_right[:, -1] - u_left[:, 0]
+        flux_right[:, -1] = 1 / Z_avg * (u_avg + a * u_jump[::-1])
+        flux_left[:, 0] = 1 / Z_avg * (u_avg + a * u_jump[::-1])
     elif bctype == "reflective":
         flux_right[:, -1] = [1, -1] * u_right[:, -1]
         flux_left[:, 0] = [1, -1] * u_left[:, 0]
     elif bctype == "non-reflective":
-        flux_right[:, -1] = 1 / 2 * np.array([[1, coef[1,-1]], [coef[0,-1], 1]]) @ u_right[:, -1]
-        flux_left[:, 0] = 1 / 2 * np.array([[1, -coef[1,0]], [-coef[0,0], 1]]) @ u_left[:, 0]
+        flux_right[:, -1] = 0.5 * np.array([[1, coef[1, -1]], [coef[0, -1], 1]]) @ u_right[:, -1]
+        flux_left[:, 0] = 0.5 * np.array([[1, -coef[1, 0]], [-coef[0, 0], 1]]) @ u_left[:, 0]
     else:
         print("AIE : Unknown Boundary condition")
         raise ValueError
 
-    F = np.zeros_like(u)  # result of the dot product
-    F[0] = 1 / Q[0] * (M_inv * (D.dot(u[1]) - flux_right[1] * P_right2 + flux_left[1] * P_left2))
-    F[1] = 1 / Q[1] * (M_inv * (D.dot(u[0]) - flux_right[0] * P_right2 + flux_left[0] * P_left2))
+    F = np.empty_like(u)  # result of the dot product
+    F[0] = 1 / Q[0] * (M_inv * (Stiff.dot(u[1]) - flux_right[1] * P_right2 + flux_left[1] * P_left2))
+    F[1] = 1 / Q[1] * (M_inv * (Stiff.dot(u[0]) - flux_right[0] * P_right2 + flux_left[0] * P_left2))
 
     return F
 
 
-def fwd_euler(u, dt, m, n, Q, a, M_inv, D, bctype):
+def fwd_euler(u, dt, m, n, Q, a, M_inv, Stiff, bctype):
     for i in range(m):
-        u[i + 1] = u[i] + dt * local_dot(n, Q, a, M_inv, D, u[i], bctype)
+        u[i + 1] = u[i] + dt * local_dot(n, Q, a, M_inv, Stiff, u[i], bctype)
 
     return u
 
 
-def rk22(u, dt, m, n, Q, a, M_inv, D, bctype):
+def rk22(u, dt, m, n, Q, a, M_inv, Stiff, bctype):
     for i in range(m):
-        K1 = local_dot(n, Q, a, M_inv, D, u[i], bctype)
-        K2 = local_dot(n, Q, a, M_inv, D, u[i] + dt / 2. * K1, bctype)
+        K1 = local_dot(n, Q, a, M_inv, Stiff, u[i], bctype)
+        K2 = local_dot(n, Q, a, M_inv, Stiff, u[i] + dt / 2. * K1, bctype)
         u[i + 1] = u[i] + dt * K2
 
     return u
 
 
-def rk44(u, dt, m, n, Q, a, M_inv, D, bctype):
+def rk44(u, dt, m, n, Q, a, M_inv, Stiff, bctype):
     for i in range(m):
-        K1 = local_dot(n, Q, a, M_inv, D, u[i], bctype)
-        K2 = local_dot(n, Q, a, M_inv, D, u[i] + K1 * dt / 2., bctype)
-        K3 = local_dot(n, Q, a, M_inv, D, u[i] + K2 * dt / 2., bctype)
-        K4 = local_dot(n, Q, a, M_inv, D, u[i] + K3 * dt, bctype)
+        K1 = local_dot(n, Q, a, M_inv, Stiff, u[i], bctype)
+        K2 = local_dot(n, Q, a, M_inv, Stiff, u[i] + K1 * dt / 2., bctype)
+        K3 = local_dot(n, Q, a, M_inv, Stiff, u[i] + K2 * dt / 2., bctype)
+        K4 = local_dot(n, Q, a, M_inv, Stiff, u[i] + K3 * dt, bctype)
         u[i + 1] = u[i] + dt * (K1 + 2 * K2 + 2 * K3 + K4) / 6.
 
     return u
@@ -119,38 +120,50 @@ def build_matrix(n, p, eps, mu):
 
 
 def compute_coefficients(f0_list, L, n, p):
-    w = [+0.5688888888888889, +0.4786286704993665, +0.4786286704993665, +0.2369268850561891, +0.2369268850561891]
-    s = [+0.0000000000000000, -0.5384693101056831, +0.5384693101056831, -0.9061798459386640, +0.9061798459386640]
+    quad_order = 2 * (p - 1)  # source to be added
+    s, w = roots_legendre(quad_order)
     dx = L / n
-    psi = [legendre(i) for i in range(p + 1)]
 
-    u = np.zeros((2 * n, p + 1, 2))
-    for j, f0 in enumerate(f0_list):
-        for k in range(2 * n):
-            middle = dx * (k + 1. / 2.) - L
-            for i in range(p + 1):
-                for l in range(5):
-                    xsi = middle + s[l] * dx / 2.
-                    u[k, i, j] += w[l] * 1. / 2. * f0(xsi, L) * psi[i](s[l])
-                u[k, i, j] *= (2 * i + 1)
+    u = np.zeros((2, p + 1, 2 * n))
+    m_inv = (2. * np.arange(p + 1) + 1.) / 2.
 
-    return np.swapaxes(u, 0, 2)
+    # vectorized-form
+    middle = np.tile(dx * np.arange(2 * n) + dx / 2. - L, (quad_order, 1))
+    x_loc = middle + np.tile(s * dx / 2, (2 * n, 1)).T
+    f_evals = [f(x_loc, L) for f in f0_list]  # 2 matrices of size (quad_order, 2n)
+    psi = np.polynomial.legendre.legvander(s, p).T  # Vandermonde matrix for legendre polynomials
+    u[0] = m_inv[:, np.newaxis] * np.dot(w[np.newaxis, :] * psi, f_evals[0])  # sum over the quadrature points
+    u[1] = m_inv[:, np.newaxis] * np.dot(w[np.newaxis, :] * psi, f_evals[1])
+
+    # readable-form
+    # psi = [legendre(i) for i in range(p + 1)]
+    # for k in range(2 * n):  # loop over elements
+    #     middle = dx * (k + 1. / 2.) - L
+    #     for l in range(quad_order):
+    #         x_loc = middle + s[l] * dx / 2.
+    #         for i in range(p + 1):
+    #             u[0, i, k] += w[l] * f0_list[0](x_loc, L) * psi[i](s[l])
+    #             u[1, i, k] += w[l] * f0_list[1](x_loc, L) * psi[i](s[l])
+    #     u[0, :, k] *= m_inv
+    #     u[1, :, k] *= m_inv
+
+    return u
 
 
 def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False):
     M_inv = (n / L * np.linspace(1, 2 * p + 1, p + 1)).reshape(-1, 1)
-    D = build_matrix(n, p, eps, mu)
+    Stiff = build_matrix(n, p, eps, mu)
     Q = np.array([eps, mu])
 
     u = np.zeros((m + 1, 2, (p + 1), 2 * n))
     u[0] = compute_coefficients(f0_list=[E0, H0], L=L, n=n, p=p)
 
     if rktype == 'ForwardEuler':
-        fwd_euler(u, dt, m, n, Q, a, M_inv, D, bctype)
+        fwd_euler(u, dt, m, n, Q, a, M_inv, Stiff, bctype)
     elif rktype == 'RK22':
-        rk22(u, dt, m, n, Q, a, M_inv, D, bctype)
+        rk22(u, dt, m, n, Q, a, M_inv, Stiff, bctype)
     elif rktype == 'RK44':
-        rk44(u, dt, m, n, Q, a, M_inv, D, bctype)
+        rk44(u, dt, m, n, Q, a, M_inv, Stiff, bctype)
     else:
         print("The integration method should be 'ForwardEuler', 'RK22', 'RK44'")
         raise ValueError
@@ -159,12 +172,12 @@ def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False)
     u = np.swapaxes(u, 0, 2)
     u = np.swapaxes(u, 0, 1)
     if anim:
-        plot_function(u, L=L, n=n, dt=dt, m=m, p=p, f0_list=[E0, H0])
+        plot_function(u, L=L, n=n, eps=eps, mu=mu, dt=dt, m=m, p=p, f0_list=[E0, H0])
 
     return u
 
 
-def plot_function(u, L, n, dt, m, p, f0_list):
+def plot_function(u, L, n, eps, mu, dt, m, p, f0_list):
     def init():
         exact_E.set_data(full_x, E0(full_x, L))
         exact_H.set_data(full_x, H0(full_x, L))
@@ -179,10 +192,10 @@ def plot_function(u, L, n, dt, m, p, f0_list):
     def animate(t_idx):
         t = t_idx * dt
         # mu0, eps0 should be functions of x to simulate different media
-        v_1 = 0.5 / sqrt_mu0 * E0(full_x - c * t, L) + 0.5 / sqrt_eps0 * H0(full_x - c * t, L)
-        v_2 = 0.5 / sqrt_mu0 * E0(full_x + c * t, L) - 0.5 / sqrt_eps0 * H0(full_x + c * t, L)
-        exact_E.set_ydata(sqrt_mu0 * (v_1 + v_2))
-        exact_H.set_ydata(sqrt_eps0 * (v_1 - v_2))
+        v_1 = 0.5 / full_sqrt_mu * E0(full_x - c * t, L) + 0.5 / full_sqrt_eps * H0(full_x - c * t, L)
+        v_2 = 0.5 / full_sqrt_mu * E0(full_x + c * t, L) - 0.5 / full_sqrt_eps * H0(full_x + c * t, L)
+        exact_E.set_ydata(full_sqrt_mu * (v_1 + v_2))
+        exact_H.set_ydata(full_sqrt_eps * (v_1 - v_2))
 
         time_text.set_text(time_template.format(t))
         for k, line in enumerate(lines_H):
@@ -199,10 +212,14 @@ def plot_function(u, L, n, dt, m, p, f0_list):
     H = np.zeros((2 * n, m + 1, n_plot + 1))
     r = np.linspace(-1, 1, n_plot + 1)
     psi = np.array([legendre(i)(r) for i in range(p + 1)]).T
-    c = 1 / (sqrt_eps0 * sqrt_mu0)
     dx = L / n
-    # Z = coef[0, 1]
     full_x = np.linspace(-L, L, 2 * n * n_plot + 1).flatten()
+    full_sqrt_eps = np.sqrt(np.r_[eps[0], np.repeat(eps, n_plot)])
+    full_sqrt_mu = np.sqrt(np.r_[mu[0], np.repeat(mu, n_plot)])
+    c = 1. / (np.sqrt(eps0) * np.sqrt(mu0))
+
+    alpha = 0.5 if (np.all(np.isclose(eps, eps[0], atol=1e-2 * eps0))) and (
+        np.all(np.isclose(mu, mu[0], atol=1e-2 * mu0))) else 0.
 
     for time in range(m + 1):
         for elem in range(2 * n):
@@ -215,8 +232,12 @@ def plot_function(u, L, n, dt, m, p, f0_list):
     time_text = axs[0].text(0.85, 0.90, '', fontsize=17, transform=axs[0].transAxes)
     lines_E = [axs[0].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
     lines_H = [axs[1].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
-    exact_E, = axs[0].plot(full_x, E0(full_x, L * np.ones_like(full_x)), color='C1', alpha=0.5, lw=5, zorder=0)
-    exact_H, = axs[1].plot(full_x, H0(full_x, L * np.ones_like(full_x)), color='C1', alpha=0.5, lw=5, zorder=0)
+    exact_E, = axs[0].plot(full_x, E0(full_x, L * np.ones_like(full_x)), color='C1', alpha=alpha, lw=5, zorder=0)
+    exact_H, = axs[1].plot(full_x, H0(full_x, L * np.ones_like(full_x)), color='C1', alpha=alpha, lw=5, zorder=0)
+
+    if (eps[0] != eps[n]) or (mu[0] != mu[n]):
+        axs[0].add_patch(plt.Rectangle((-L / 2., -2. * coef[1, 1]), L, 4. * coef[1, 1], facecolor="grey", alpha=0.35))
+        axs[1].add_patch(plt.Rectangle((-L / 2., -2.), L, 4., facecolor="grey", alpha=0.35))
 
     scale = 1.15
     axs[0].set_xlim(-L, L)
@@ -239,23 +260,24 @@ def plot_function(u, L, n, dt, m, p, f0_list):
 
 
 if __name__ == "__main__":
-    sqrt_eps0, sqrt_mu0 = np.sqrt(8.8541878128e-12), np.sqrt(4.e-7 * np.pi)
+    eps0, mu0 = 8.8541878128e-12, 4.e-7 * np.pi
 
     L_, n_, p_ = 3e8 / 2., 10, 3
-    c_, m_ = 1 / (sqrt_eps0 * sqrt_mu0), 2000
-    eps0 = 8.85e-12 * np.ones(2 * n_)
-    mu0 = 4 * np.pi * 1e-7 * np.ones(2 * n_)
-
+    c_, m_ = 1. / (np.sqrt(eps0) * np.sqrt(mu0)), 1000
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
+    eps_, mu_ = eps0 * np.ones(2 * n_), mu0 * np.ones(2 * n_)
+    # eps_[n_ // 2:3 * n_ // 2] *= 5  # permittivity of glass differs, but the rest stays the same
+    # mu_[n_ // 2:3 * n_ // 2] *= 5  # hypothetical material
+
     E1 = lambda x, L: 0 * x
-    E2 = lambda x, L: -sqrt_mu0 / sqrt_eps0 * np.exp(-(10 * x / L) ** 2)
+    E2 = lambda x, L: -np.sqrt(mu0) / np.sqrt(eps0) * np.exp(-(10 * x / L) ** 2)
     H1 = lambda x, L: np.exp(-(10 * x / L) ** 2)
     H2 = lambda x, L: (0.5 * np.cos(np.pi * x / L) + 0.5) * np.where(np.abs(x) <= L, 1., 0.)
-    H3 = lambda x, L: np.cos(2 * np.pi * 10. * x / L) * np.exp(-(10 * x / L) ** 2)  # needs 20 elems
+    H3 = lambda x, L: np.cos(2 * np.pi * 10. * x / L) * np.exp(-(10 * x / L) ** 2)  # needs more precision
     H4 = lambda x, L: np.sin(2 * 5 * np.pi * x / L) * np.where(np.abs(x) <= L / 5., 1., 0.)
     H5 = lambda x, L: np.sin(2 * np.pi * 5 * x / L) * np.where(np.abs(x - L / 2.) <= L / 10., 1., 0.)  # non symmetric
 
-    #res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
-    # res = maxwell1d(L_, E1, H5, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
-    res = maxwell1d(L_, E1, H1, n_, eps0, mu0, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)
+    res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='periodic', a=0., anim=True)
+    # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
+    # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)

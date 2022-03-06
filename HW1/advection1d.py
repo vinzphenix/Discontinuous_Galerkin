@@ -183,7 +183,7 @@ if __name__ == "__main__":
     # dt_ = 0.002
     m_ = int(1. / dt_)
 
-    f1 = lambda x, L: np.sin(2 * 32 * np.pi * x / L)
+    f1 = lambda x, L: np.sin(2 * 3 * np.pi * x / L)
     f2 = lambda x, L: np.cos(2 * np.pi * x / L) + 0.4 * np.cos(4 * np.pi * x / L) + 0.1 * np.sin(6 * np.pi * x / L)
     f3 = lambda x, L: np.arctan(np.abs(np.tan(np.pi * x / L)))
     f4 = lambda x, L: np.heaviside(np.fmod(np.fmod(x / L, 1.) + 1, 1.) - 0.5, 0.)

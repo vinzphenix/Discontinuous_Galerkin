@@ -24,8 +24,6 @@ table = [
 
 global P_right  # list of (1.)
 global P_left  # list of (-1)^i
-global P_right2  # matrix version of P_right
-global P_left2  # matrix version of P_left
 global coef  # first row is sqrt(eps/mu), second row is sqrt(mu/eps)
 
 
@@ -66,8 +64,8 @@ def local_dot(n, Q, a, M_inv, Stiff, u, bctype):
         raise ValueError
 
     F = np.empty_like(u)  # result of the dot product
-    F[0] = 1 / Q[0] * (M_inv * (Stiff.dot(u[1]) - flux_right[1] * P_right2 + flux_left[1] * P_left2))
-    F[1] = 1 / Q[1] * (M_inv * (Stiff.dot(u[0]) - flux_right[0] * P_right2 + flux_left[0] * P_left2))
+    F[0] = 1 / Q[0] * (M_inv * (Stiff.dot(u[1]) - flux_right[1] * P_right + flux_left[1] * P_left))
+    F[1] = 1 / Q[1] * (M_inv * (Stiff.dot(u[0]) - flux_right[0] * P_right + flux_left[0] * P_left))
 
     return F
 
@@ -104,12 +102,10 @@ def build_matrix(n, p, eps, mu):
     offsets_of_D = -np.arange(1, p + 1, 2)
     D = sp.diags([np.zeros(p + 1)] + diags_of_D, np.r_[0, offsets_of_D])  # array of 0 for case p = 0
 
-    global P_right, P_right2
-    global P_left, P_left2
-    P_right = np.ones(p + 1)
-    P_right2 = P_right.reshape(-1, 1)
-    P_left = np.array([(-1) ** i for i in range(p + 1)])
-    P_left2 = P_left.reshape(-1, 1)
+    global P_right
+    global P_left
+    P_right = (np.ones(p + 1)).reshape(-1, 1)
+    P_left = np.array([(-1) ** i for i in range(p + 1)]).reshape(-1, 1)
 
     global coef
     coef = np.zeros((2, 2 * n))

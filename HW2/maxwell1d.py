@@ -25,9 +25,11 @@ table = [
 global P_right  # list of (1.)
 global P_left  # list of (-1)^i
 global coef  # first row is sqrt(eps/mu), second row is sqrt(mu/eps)
+global M_inv # inverse of mass matrix
+global Stiff # stiff matrix
 
 
-def local_dot(n, Q, a, M_inv, Stiff, u, bctype):
+def local_dot(n, Q, a, u, bctype):
     # this "u" has shape (2, (p + 1), 2 * n)
 
     # u_left, u_right are the values of the fields on the left and right of each element
@@ -70,37 +72,41 @@ def local_dot(n, Q, a, M_inv, Stiff, u, bctype):
     return F
 
 
-def fwd_euler(u, dt, m, n, Q, a, M_inv, Stiff, bctype):
+def fwd_euler(u, dt, m, n, Q, a, bctype):
     for i in range(m):
-        u[i + 1] = u[i] + dt * local_dot(n, Q, a, M_inv, Stiff, u[i], bctype)
+        u[i + 1] = u[i] + dt * local_dot(n, Q, a,u[i], bctype)
 
     return u
 
 
-def rk22(u, dt, m, n, Q, a, M_inv, Stiff, bctype):
+def rk22(u, dt, m, n, Q, a, bctype):
     for i in range(m):
-        K1 = local_dot(n, Q, a, M_inv, Stiff, u[i], bctype)
-        K2 = local_dot(n, Q, a, M_inv, Stiff, u[i] + dt / 2. * K1, bctype)
+        K1 = local_dot(n, Q, a, u[i], bctype)
+        K2 = local_dot(n, Q, a, u[i] + dt / 2. * K1, bctype)
         u[i + 1] = u[i] + dt * K2
 
     return u
 
 
-def rk44(u, dt, m, n, Q, a, M_inv, Stiff, bctype):
+def rk44(u, dt, m, n, Q, a, bctype):
     for i in range(m):
-        K1 = local_dot(n, Q, a, M_inv, Stiff, u[i], bctype)
-        K2 = local_dot(n, Q, a, M_inv, Stiff, u[i] + K1 * dt / 2., bctype)
-        K3 = local_dot(n, Q, a, M_inv, Stiff, u[i] + K2 * dt / 2., bctype)
-        K4 = local_dot(n, Q, a, M_inv, Stiff, u[i] + K3 * dt, bctype)
+        K1 = local_dot(n, Q, a, u[i], bctype)
+        K2 = local_dot(n, Q, a, u[i] + K1 * dt / 2., bctype)
+        K3 = local_dot(n, Q, a, u[i] + K2 * dt / 2., bctype)
+        K4 = local_dot(n, Q, a, u[i] + K3 * dt, bctype)
         u[i + 1] = u[i] + dt * (K1 + 2 * K2 + 2 * K3 + K4) / 6.
 
     return u
 
 
-def build_matrix(n, p, eps, mu):
-    diags_of_D = [2 * np.ones(p - 2 * i) for i in range((p + 1) // 2)]
-    offsets_of_D = -np.arange(1, p + 1, 2)
-    D = sp.diags([np.zeros(p + 1)] + diags_of_D, np.r_[0, offsets_of_D])  # array of 0 for case p = 0
+def build_matrix(n, p, eps, mu, L):
+    global M_inv
+    M_inv = (n / L * np.linspace(1, 2 * p + 1, p + 1)).reshape(-1, 1)
+
+    global Stiff
+    diags_of_S = [2 * np.ones(p - 2 * i) for i in range((p + 1) // 2)]
+    offsets_of_S = -np.arange(1, p + 1, 2)
+    Stiff = sp.diags([np.zeros(p + 1)] + diags_of_S, np.r_[0, offsets_of_S])  # array of 0 for case p = 0
 
     global P_right
     global P_left
@@ -112,7 +118,6 @@ def build_matrix(n, p, eps, mu):
     coef[0] = np.sqrt(eps / mu)
     coef[1] = np.sqrt(mu / eps)
 
-    return D
 
 
 def compute_coefficients(f0_list, L, n, p):
@@ -147,19 +152,19 @@ def compute_coefficients(f0_list, L, n, p):
 
 
 def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False):
-    M_inv = (n / L * np.linspace(1, 2 * p + 1, p + 1)).reshape(-1, 1)
-    Stiff = build_matrix(n, p, eps, mu)
+
+    build_matrix(n, p, eps, mu, L)
     Q = np.array([eps, mu])
 
     u = np.zeros((m + 1, 2, (p + 1), 2 * n))
     u[0] = compute_coefficients(f0_list=[E0, H0], L=L, n=n, p=p)
 
     if rktype == 'ForwardEuler':
-        fwd_euler(u, dt, m, n, Q, a, M_inv, Stiff, bctype)
+        fwd_euler(u, dt, m, n, Q, a, bctype)
     elif rktype == 'RK22':
-        rk22(u, dt, m, n, Q, a, M_inv, Stiff, bctype)
+        rk22(u, dt, m, n, Q, a, bctype)
     elif rktype == 'RK44':
-        rk44(u, dt, m, n, Q, a, M_inv, Stiff, bctype)
+        rk44(u, dt, m, n, Q, a, bctype)
     else:
         print("The integration method should be 'ForwardEuler', 'RK22', 'RK44'")
         raise ValueError
@@ -263,7 +268,7 @@ if __name__ == "__main__":
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
     eps_, mu_ = eps0 * np.ones(2 * n_), mu0 * np.ones(2 * n_)
-    eps_[n_ // 2:3 * n_ // 2] *= 5  # permittivity of glass differs, but the rest stays the same
+    # eps_[n_ // 2:3 * n_ // 2] *= 5  # permittivity of glass differs, but the rest stays the same
     # mu_[n_ // 2:3 * n_ // 2] *= 5  # hypothetical material
 
     E1 = lambda x, L: 0 * x
@@ -274,6 +279,6 @@ if __name__ == "__main__":
     H4 = lambda x, L: np.sin(2 * 5 * np.pi * x / L) * np.where(np.abs(x) <= L / 5., 1., 0.)
     H5 = lambda x, L: np.sin(2 * np.pi * 5 * x / L) * np.where(np.abs(x - L / 2.) <= L / 10., 1., 0.)  # non symmetric
 
-    res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='periodic', a=0., anim=True)
+    res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
     # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
     # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)

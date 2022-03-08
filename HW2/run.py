@@ -3,16 +3,16 @@ import numpy as np
 from scipy.special import legendre
 from maxwell1d import maxwell1d, table
 
-ftSz1, ftSz2, ftSz3 = 20, 15, 12
+ftSz1, ftSz2, ftSz3 = 20, 17, 15
 plt.rcParams["text.usetex"] = False
 plt.rcParams['font.family'] = 'monospace'
 
 
 def compare_solutions(glass=False, bctype="periodic", name="", save=False):
-    L, n, p = 3e8, 10, 3
     c = 1. / (np.sqrt(eps0) * np.sqrt(mu0))
+    L, n, p = c, 10, 3
     dt = 0.5 * table[p][3] / c * L / n
-    dt = 0.005
+    # dt = 0.005
     E0, H0 = E1_global, H1_global
     m = int(2. / dt)
 
@@ -43,7 +43,7 @@ def compare_solutions(glass=False, bctype="periodic", name="", save=False):
     else:
         times = [np.argmin(np.abs(t_array - t)) for t in [0.25, 1., 1.5, 2.]]
 
-    fig, axs = plt.subplots(4, 2, figsize=(12, 10), constrained_layout=True, sharex='all', sharey='col')
+    fig, axs = plt.subplots(4, 2, figsize=(10, 8), constrained_layout=True, sharex='all', sharey='col')
 
     for i, t_idx in enumerate(times):
         t = t_idx * dt
@@ -82,7 +82,7 @@ def compare_solutions(glass=False, bctype="periodic", name="", save=False):
     axs[-1, 1].set_xlabel("x [light-second]", fontsize=ftSz2)
     lines_labels = [axs[0, i].get_legend_handles_labels() for i in range(2)]
     lines, labels = [sum(lol, []) for lol in zip(*lines_labels)]
-    lgd = fig.legend(lines, labels, labelspacing=2.5, bbox_to_anchor=(0.15, -1., 0.7, 1.), mode='expand',
+    lgd = fig.legend(lines, labels, labelspacing=2.5, bbox_to_anchor=(0.1, -1., 0.87, 1.), mode='expand',
                      ncol=4, facecolor='wheat', framealpha=0.25, fancybox=True, fontsize=ftSz3)
 
     if save:
@@ -100,6 +100,6 @@ if __name__ == "__main__":
     E1_global = lambda x, L: 0 * x
     H1_global = lambda x, L: np.exp(-(10 * x / L) ** 2)
 
-    # compare_solutions(bctype="reflective", name="comparison_reflective", save=False)
-    # compare_solutions(bctype="non-reflective", name="comparison_infinite", save=False)
-    compare_solutions(glass=True, bctype="non-reflective", name="glass_block", save=False)
+    compare_solutions(bctype="reflective", name="comparison_reflective", save=save_global)
+    compare_solutions(bctype="non-reflective", name="comparison_infinite", save=save_global)
+    compare_solutions(glass=True, bctype="non-reflective", name="glass_block", save=save_global)

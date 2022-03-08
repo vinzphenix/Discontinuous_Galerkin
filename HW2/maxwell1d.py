@@ -25,8 +25,8 @@ table = [
 global P_right  # list of (1.)
 global P_left  # list of (-1)^i
 global coef  # first row is sqrt(eps/mu), second row is sqrt(mu/eps)
-global M_inv # inverse of mass matrix
-global Stiff # stiff matrix
+global M_inv  # inverse of mass matrix
+global Stiff  # stiff matrix
 
 
 def local_dot(n, Q, a, u, bctype):
@@ -74,7 +74,7 @@ def local_dot(n, Q, a, u, bctype):
 
 def fwd_euler(u, dt, m, n, Q, a, bctype):
     for i in range(m):
-        u[i + 1] = u[i] + dt * local_dot(n, Q, a,u[i], bctype)
+        u[i + 1] = u[i] + dt * local_dot(n, Q, a, u[i], bctype)
 
     return u
 
@@ -117,7 +117,6 @@ def build_matrix(n, p, eps, mu, L):
     coef = np.zeros((2, 2 * n))
     coef[0] = np.sqrt(eps / mu)
     coef[1] = np.sqrt(mu / eps)
-
 
 
 def compute_coefficients(f0_list, L, n, p):
@@ -229,8 +228,8 @@ def plot_function(u, L, n, eps, mu, dt, m, p, f0_list):
 
     fig, axs = plt.subplots(2, 1, figsize=(10, 6), constrained_layout=True, sharex='all')
 
-    time_template = r'$t = {:.2f} [s]$'
-    time_text = axs[0].text(0.85, 0.90, '', fontsize=17, transform=axs[0].transAxes)
+    time_template = r'$t = {:.3f} [s]$'
+    time_text = axs[0].text(0.83, 0.90, '', fontsize=17, transform=axs[0].transAxes)
     lines_E = [axs[0].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
     lines_H = [axs[1].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
     exact_E, = axs[0].plot(full_x, E0(full_x, L * np.ones_like(full_x)), color='C1', alpha=alpha, lw=5, zorder=0)

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 # Inputs:
 L = 384400e3                            # distance between Earth and Moon [m]
-E0 = lambda x,L : 0.                    # initial condition of q.2
+E0 = lambda x,L : 0.*x                    # initial condition of q.2
 H0 = lambda x,L : np.exp(-(10*x/L)**2)  # initial condition of q.2
 n = 25                                  # space discretization
 eps = np.ones(2*n)*8.854e-12            # vacuum permittivity [F/m]
@@ -26,7 +26,7 @@ CFL = c*dt/h                            # CFL number
 Tfinal = 2*L/c                          # final time
 m = int(Tfinal/dt)                      # number of time steps
 p = 3                                   # order of Legendre polynomial
-rktype = "RK44"                         # time integration type ("ForwardEuler", "RK22", "RK44")                
+rktype = "RK44"                         # time integration type ("ForwardEuler", "RK22", "RK44")
 bctype = "reflective"                   # boundary condition type ("periodic", "reflective", "non-reflective")
 print("CFL : ", CFL)
 
@@ -42,9 +42,9 @@ def leg(x):
         P[i+1] = ((2*i+1)*x*P[i] - i*P[i-1]) / (i+1)
     return P
 
-# Sampling of solution: 
+# Sampling of solution:
 # returns the value of E or H at N points within each element
-def sample_solution(uhat, N):   
+def sample_solution(uhat, N):
     sol = np.zeros((2*n, N+1))
     r = np.linspace(-1, 1, N+1)
     x = np.zeros((2*n, N+1))
@@ -73,7 +73,7 @@ for i,t in enumerate(t_samples):
     for e in range(2*n):
         axs1[i].plot(x[i,e,:], solE[i,e,:], color='b')
         axs1[i].set(ylabel="$E(t=%.3f)$"%(t*dt))
-axs1[-1].set(xlabel="x")      
+axs1[-1].set(xlabel="x")
 
 # H
 fig2, axs2 = plt.subplots(4)
@@ -82,7 +82,7 @@ for i,t in enumerate(t_samples):
     for e in range(2*n):
         axs2[i].plot(x[i,e,:], solH[i,e,:]*Z0, color='r')
         axs2[i].set(ylabel="$Z_0*H(t=%.3f)$"%(t*dt))
-axs2[-1].set(xlabel="x")      
+axs2[-1].set(xlabel="x")
 
 plt.show()
 

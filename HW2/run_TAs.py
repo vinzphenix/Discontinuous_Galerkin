@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 # Inputs:
 L = 384400e3                            # distance between Earth and Moon [m]
-E0 = lambda x,L : 0. * x                    # initial condition of q.2
+E0 = lambda x,L : 0.                    # initial condition of q.2
 H0 = lambda x,L : np.exp(-(10*x/L)**2)  # initial condition of q.2
 n = 25                                  # space discretization
 eps = np.ones(2*n)*8.854e-12            # vacuum permittivity [F/m]

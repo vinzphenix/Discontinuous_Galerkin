@@ -263,7 +263,7 @@ if __name__ == "__main__":
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
 
     eps_, mu_ = eps0 * np.ones(2 * n_), mu0 * np.ones(2 * n_)
-    # eps_[n_ // 2:3 * n_ // 2] *= 5  # permittivity of glass differs, but the rest stays the same
+    eps_[n_ // 2:3 * n_ // 2] *= 5  # permittivity of glass differs, but the rest stays the same
     # mu_[n_ // 2:3 * n_ // 2] *= 5  # hypothetical material
 
     E1 = lambda x, L: 0 * x

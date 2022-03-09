@@ -66,8 +66,8 @@ def local_dot(n, Q, a, u, bctype):
         raise ValueError
 
     F = np.empty_like(u)  # result of the dot product
-    F[0] = 1 / Q[0] * (M_inv * (Stiff.dot(u[1]) - flux_right[1] * P_right + flux_left[1] * P_left))
-    F[1] = 1 / Q[1] * (M_inv * (Stiff.dot(u[0]) - flux_right[0] * P_right + flux_left[0] * P_left))
+    F[0] = 1 / Q[0] * M_inv * (Stiff.dot(u[1]) - flux_right[1] * P_right + flux_left[1] * P_left)
+    F[1] = 1 / Q[1] * M_inv * (Stiff.dot(u[0]) - flux_right[0] * P_right + flux_left[0] * P_left)
 
     return F
 
@@ -168,6 +168,7 @@ def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False)
         print("The integration method should be 'ForwardEuler', 'RK22', 'RK44'")
         raise ValueError
 
+    # set the time axis first: (3 permutations needed to roll the axes)
     u = np.swapaxes(u, 0, 3)
     u = np.swapaxes(u, 0, 2)
     u = np.swapaxes(u, 0, 1)
@@ -251,7 +252,7 @@ def plot_function(u, L, n, eps, mu, dt, m, p, f0_list):
     axs[1].grid(ls=':')
 
     # to animate
-    _ = FuncAnimation(fig, animate, m + 1, interval=dt, blit=True, init_func=init, repeat_delay=3000)
+    _ = FuncAnimation(fig, animate, m + 1, interval=1e3*dt, blit=True, init_func=init, repeat_delay=3000)
 
     # to get only one frame at t = i
     # i = 0 ; init() ; animate(i)
@@ -278,6 +279,6 @@ if __name__ == "__main__":
     H4 = lambda x, L: np.sin(2 * 5 * np.pi * x / L) * np.where(np.abs(x) <= L / 5., 1., 0.)
     H5 = lambda x, L: np.sin(2 * np.pi * 5 * x / L) * np.where(np.abs(x - L / 2.) <= L / 10., 1., 0.)  # non symmetric
 
-    res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
-    # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
+    # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
+    res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
     # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)

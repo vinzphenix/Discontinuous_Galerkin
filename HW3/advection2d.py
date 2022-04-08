@@ -27,6 +27,8 @@ def get_edges_mapping(order, Nt, Np):
     elementTags, elementNodeTags = gmsh.model.mesh.getElementsByType(elementType)
     edgeNodes = gmsh.model.mesh.getElementEdgeNodes(elementType).reshape(-1, order + 1)  # (order+1) nodes on each edge
 
+    # print(edgeNodes)
+
     edgeTags, edgeOrientations = gmsh.model.mesh.getEdges(edgeNodes[:, :2].flatten())
     nodeTags, coords, _ = gmsh.model.mesh.getNodes()
 
@@ -91,10 +93,10 @@ def get_matrices():
     determinants = np.array(determinants)
 
     inv_jac = np.empty_like(jacobians)  # trick to inverse 2x2 matrix
-    inv_jac[:, 0, 0] = +jacobians[:, 1, 1] / determinants
-    inv_jac[:, 0, 1] = -jacobians[:, 1, 0] / determinants
-    inv_jac[:, 1, 0] = -jacobians[:, 0, 1] / determinants
-    inv_jac[:, 1, 1] = +jacobians[:, 0, 0] / determinants
+    inv_jac[:, 0, 0] = +jacobians[:, 1, 1]
+    inv_jac[:, 0, 1] = -jacobians[:, 0, 1]
+    inv_jac[:, 1, 0] = -jacobians[:, 1, 0]
+    inv_jac[:, 1, 1] = +jacobians[:, 0, 0]
 
     return Nt, Np, M_matrix, D_matrix, inv_jac, determinants, elementType, order
 
@@ -136,29 +138,37 @@ def local_dot(phi, a, Nt, Np, order):
     for edgeTag, dic in edgesInfo.items():  # loop over all the edges
         if len(dic["elem"]) == 2:
             elemIn, elemOut = dic["elem"]
-            l, _ = dic["number"]
+            lIn, lOut = dic["number"]
             length = dic["length"]
 
-            cornerNodes = [l, (l + 1) % 3]
-            edgeNodes = [3 + l * (order - 1) + i for i in range(order - 1)]
-            nodesThisElem = cornerNodes + edgeNodes
-            nodesNextElem = cornerNodes[::-1] + edgeNodes[::-1]
+            # cornerNodes = [lIn, (lIn + 1) % 3]
+            # edgeNodes = [3 + lIn * (order - 1) + i for i in range(order - 1)]
+            nodesThisElem = [lIn, (lIn + 1) % 3] + [3 + lIn * (order - 1) + i for i in range(order - 1)]
+            nodesNextElem = [lOut, (lOut + 1) % 3][::-1] + [3 + lOut * (order - 1) + i for i in range(order - 1)][::-1]
 
             # print(edgeTag, nodesThisElem, nodesNextElem)
 
-            for nodeIn, nodeOut in zip(nodesThisElem, nodesNextElem):  # TODO: correctly loop over nodes
+            for nodeIn, nodeOut in zip(nodesThisElem, nodesNextElem):
                 normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
-                avg = (phi[elemIn][nodeIn] + phi[elemOut][nodeOut]) * 0.5
-                dif = (phi[elemIn][nodeIn] - phi[elemOut][nodeOut]) * 0.5 * np.sign(normal_velocity)
-                Flux_edge[l][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * length
+
+                tol = 0.00001
+                xin, yin = coordinates_matrix[Np * elemIn + nodeIn]
+                xout, yout = coordinates_matrix[Np * elemOut + nodeOut]
+                if np.abs(xin - xout) > tol or np.abs(yin - yout) > tol:
+                    print("NOT MATCHING !!!!")
+                # print(f"\t(xIn = {xin:.3f}, yIn = {yin:.3f})   (xOut = {xout:.3f}, yOut = {yout:.3f})", end="\t")
+                # print("\t", elemIn, elemOut, nodeIn, nodeOut, normal_velocity)
+
+                # avg = (phi[elemIn][nodeIn] + phi[elemOut][nodeOut]) * 0.5
+                # dif = (phi[elemIn][nodeIn] - phi[elemOut][nodeOut]) * 0.5 * np.sign(normal_velocity)
+                # Flux_edge[lIn][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * length
 
                 if normal_velocity > 0:  # take phi value inside
-                    Flux_edge[l][elemIn][nodeIn] = phi[elemIn][nodeIn] * normal_velocity * length  # TODO: take correct node
+                    Flux_edge[lIn][elemIn][nodeIn] = phi[elemIn][nodeIn] * normal_velocity * length
                 else:  # take phi value outside
-                    Flux_edge[l][elemIn][nodeIn] = phi[elemOut][nodeOut] * normal_velocity * length  # TODO: take correct node
+                    Flux_edge[lIn][elemIn][nodeIn] = phi[elemOut][nodeOut] * normal_velocity * length
 
-                # TODO: add opposite flux to the other triangle
-                Flux_edge[l][elemOut][nodeOut] = -Flux_edge[l][elemIn][nodeIn]
+                Flux_edge[lOut][elemOut][nodeOut] = -Flux_edge[lIn][elemIn][nodeIn]
         else:
             elemIn, = dic["elem"]
             l, = dic["number"]
@@ -178,13 +188,13 @@ def local_dot(phi, a, Nt, Np, order):
 
                 if normal_velocity > 0:  # take phi value inside
                     Flux_edge[l][elemIn][nodeIn] = phi[elemIn][nodeIn] * normal_velocity * length
-                else:  # take phi value outside
+                else:  # take phi value outside (supposed to be zero ???)
                     Flux_edge[l][elemIn][nodeIn] = 0. * normal_velocity * length
 
     # sum_edge_flux = sum(np.dot(Flux_edge[i], ME[i]) for i in range(3))
     sum_edge_flux = np.dot(Flux_edge[0], ME[0]) + np.dot(Flux_edge[1], ME[1]) + np.dot(Flux_edge[2], ME[2])
-    sum_all_flux = np.dot(Flux_ksi, D[0]) + np.dot(Flux_eta, D[1]) - 1. / det[:, np.newaxis] * sum_edge_flux
-    return np.dot(sum_all_flux, M_inv)
+    sum_all_flux = np.dot(Flux_ksi, D[0]) + np.dot(Flux_eta, D[1]) - sum_edge_flux
+    return np.dot(sum_all_flux / det[:, np.newaxis], M_inv)
 
 
 def fwd_euler(phi, dt, m, a, Nt, Np, order):
@@ -206,6 +216,8 @@ def rk22(phi, dt, m, a, Nt, Np, order):
 def rk44(phi, dt, m, a, Nt, Np, order):
     for i in range(m):
         K1 = local_dot(phi[i], a, Nt, Np, order)
+        if i == 0:
+            blockPrint()
         K2 = local_dot(phi[i] + K1 * dt / 2., a, Nt, Np, order)
         K3 = local_dot(phi[i] + K2 * dt / 2., a, Nt, Np, order)
         K4 = local_dot(phi[i] + K3 * dt, a, Nt, Np, order)
@@ -214,8 +226,8 @@ def rk44(phi, dt, m, a, Nt, Np, order):
     return phi
 
 
-def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., interactive=False):
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity
+def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display=False, interactive=False):
+    global M_inv, D, ME, IJ, det, edgesInfo, velocity, coordinates_matrix
 
     gmsh.initialize()
     gmsh.open(meshfilename)
@@ -226,11 +238,13 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., interac
     ME = get_matrices_edges(elementType, order)
     coordinates_matrix, edgesInfo = get_edges_mapping(order, Nt, Np)
 
-    velocity = np.array(u(coordinates_matrix)).reshape((2, Nt, Np))
+    velocity = np.array(u(coordinates_matrix)).reshape((Nt, Np, 2))
+    velocity = np.swapaxes(velocity, 0, 2)
+    velocity = np.swapaxes(velocity, 1, 2)
 
-    phi = np.zeros((m+1, Nt * Np))
+    phi = np.zeros((m + 1, Nt * Np))
     phi[0] = f(coordinates_matrix)
-    phi = phi.reshape((m+1, Nt, Np))
+    phi = phi.reshape((m + 1, Nt, Np))
 
     if rktype == 'ForwardEuler':
         fwd_euler(phi, dt, m, a, Nt, Np, order)
@@ -242,32 +256,39 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., interac
         print("The integration method should be 'ForwardEuler', 'RK22', 'RK44'")
         raise ValueError
 
-    # coords = coordinates_matrix
-    # fig, axs = plt.subplots(1, 3, figsize=(14., 5.), constrained_layout=True)
-    # for ax, idx in zip(axs, [0, m//2, m]):
-    #     ax.tricontourf(coords[:, 0], coords[:, 1], phi[idx].flatten(), cmap=plt.get_cmap('jet'))
-    #     ax.triplot(coords[:, 0], coords[:, 1])
-    #     ax.set_aspect("equal")
-    # plt.show()
+    if display:
+        node_coords = np.empty((3*Nt, 2))
+        for i in range(Nt):
+            node_coords[3*i] = coordinates_matrix[Np * i]
+            node_coords[3*i+1] = coordinates_matrix[Np * i+1]
+            node_coords[3*i+2] = coordinates_matrix[Np * i+2]
+
+        coords = coordinates_matrix
+        fig, axs = plt.subplots(1, 3, figsize=(14., 5.), constrained_layout=True, sharex="all", sharey="all")
+        for ax, idx in zip(axs, [0, 1, 2]):
+            # ax.tricontourf(coords[:, 0], coords[:, 1], phi[idx].flatten(), cmap=plt.get_cmap('jet'))
+            ax.tripcolor(coords[:, 0], coords[:, 1], phi[idx].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
+            ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5)
+            ax.set_aspect("equal")
+        plt.show()
 
     if interactive:
-        t_idx = 1
-        viewTag = gmsh.view.add("stress-data")
-        modelName = gmsh.model.list()[0]
-        data = phi[t_idx].reshape(Nt * Np, -1)
-        elementTags, elementNodeTags = gmsh.model.mesh.getElementsByType(elementType)
-        gmsh.view.addModelData(viewTag, 0, modelName, "NodeData", elementNodeTags, data, time=0.)
-
-    if '-nopopup' not in sys.argv:
+        # t_idx = 0
+        # viewTag = gmsh.view.add("stress-data")
+        # modelName = gmsh.model.list()[0]
+        # data = phi[t_idx].reshape(Nt * Np, -1)
+        # elementTags, elementNodeTags = gmsh.model.mesh.getElementsByType(elementType)
+        # gmsh.view.addModelData(viewTag, 0, modelName, "NodeData", elementNodeTags, data, time=0.)
         gmsh.fltk.run()
+
     gmsh.finalize()
 
     return
 
 
 def my_initial_condition(x):
-    xc = x[:, 0] - 1. / 2.
-    yc = x[:, 1] - 1. / 2.
+    xc = x[:, 0] - 1.
+    yc = x[:, 1] - 1.
     l2 = xc ** 2 + yc ** 2
     return np.exp(-l2 * 10.)
 
@@ -347,7 +368,7 @@ def spyMatrices():
 
 
 if __name__ == "__main__":
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity
+    global M_inv, D, ME, IJ, det, edgesInfo, velocity, coordinates_matrix
 
-    advection2d("t2.msh", 0.01, 5, my_initial_condition, my_velocity_condition, order=3, a=1., interactive=True)
+    advection2d("t2.msh", 0.01, 3, my_initial_condition, my_velocity_condition, order=2, a=1., display=True, interactive=False)
     # spyMatrices()

@@ -2,11 +2,11 @@ import gmsh
 import sys
 gmsh.initialize()
 gmsh.model.add("t1")
-lc = 0.05
+lc = 0.1
 gmsh.model.geo.addPoint(0, 0, 0, lc, 1)
-gmsh.model.geo.addPoint(1, 0, 0, lc, 2)
-gmsh.model.geo.addPoint(1, 1, 0, lc, 3)
-p4 = gmsh.model.geo.addPoint(0, 1, 0, lc)
+gmsh.model.geo.addPoint(2, 0, 0, lc, 2)
+gmsh.model.geo.addPoint(2, 2, 0, lc, 3)
+p4 = gmsh.model.geo.addPoint(0, 2, 0, lc)
 gmsh.model.geo.addLine(1, 2, 1)
 gmsh.model.geo.addLine(3, 2, 2)
 gmsh.model.geo.addLine(3, p4, 3)

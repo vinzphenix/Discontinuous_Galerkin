@@ -7,6 +7,7 @@ gmsh.initialize()
 order = 3
 gmsh.open("t4.msh")
 gmsh.model.mesh.setOrder(order)
+
 gmsh.model.mesh.createEdges()
 
 elementType = gmsh.model.mesh.getElementType("triangle", order)
@@ -15,7 +16,7 @@ elementTags, elementNodeTags = gmsh.model.mesh.getElementsByType(elementType)
 
 edgeNodes = gmsh.model.mesh.getElementEdgeNodes(elementType).reshape(-1, order + 1)
 
-# print(edgeNodes)
+print(edgeNodes)
 
 edgeTags, edgeOrientations = gmsh.model.mesh.getEdges(edgeNodes[:, :2].flatten())
 

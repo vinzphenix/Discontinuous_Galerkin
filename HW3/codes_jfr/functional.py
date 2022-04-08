@@ -42,11 +42,14 @@ for k in range(numGaussPoints):
             Dxi[i, j] += weights[k] * dsfdu[k, i, 0] * sf[k, j]
             Deta[i, j] += weights[k] * dsfdu[k, i, 1] * sf[k, j]
 
-M2 = np.einsum("k,ki,kj -> ji", weights, sf, sf);
-D = np.einsum("k,kil,kj ->ijl", weights, dsfdu, sf);
+M2 = np.einsum("k,ki,kj -> ji", weights, sf, sf)
+D = np.einsum("k,kil,kj ->ijl", weights, dsfdu, sf)
 
-print(D[:, :, 0] - Dxi)
-print(D[:, :, 1] - Deta)
+print(M2[0, 0])
+print(Dxi[0, 0])
+
+# print(D[:, :, 0] - Dxi)
+# print(D[:, :, 1] - Deta)
 
 # M2 = np.einsum("k,ki,kj->ij", weights, sf, sf)
 # D = np.einsum("k,kil,kj->ijl", weights, dsfdu, sf)

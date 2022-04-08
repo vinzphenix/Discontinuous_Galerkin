@@ -6,6 +6,7 @@ import sys
 import os
 from scipy.special import roots_legendre
 from numpy import pi, sin, sqrt
+from tqdm import tqdm
 
 ftSz1, ftSz2, ftSz3 = 20, 15, 12
 plt.rcParams["text.usetex"] = False
@@ -85,6 +86,8 @@ def get_matrices():
 
     M_matrix = np.einsum("k,ki,kj -> ij", weights, sf, sf)
     D_matrix = np.einsum("k,kil,kj ->lij", weights, dsfdu, sf)
+    # np.savetxt("M.txt", M_matrix, fmt="%.5f")
+    # np.savetxt("D.txt", D_matrix[0], fmt="%7.4f")
 
     jacobians, determinants, _ = gmsh.model.mesh.getJacobians(elementType, [1. / 3., 1. / 3., 1. / 3.])
     jacobians = np.array(jacobians).reshape((Nt, 3, 3))
@@ -136,7 +139,7 @@ def local_dot(phi, a, Nt, Np, order):
 
     # TODO Handle boundary conditions
     for edgeTag, dic in edgesInfo.items():  # loop over all the edges
-        if len(dic["elem"]) == 2:
+        if len(dic["elem"]) == 2:  # inside edge
             elemIn, elemOut = dic["elem"]
             lIn, lOut = dic["number"]
             length = dic["length"]
@@ -151,11 +154,11 @@ def local_dot(phi, a, Nt, Np, order):
             for nodeIn, nodeOut in zip(nodesThisElem, nodesNextElem):
                 normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
 
-                tol = 0.00001
-                xin, yin = coordinates_matrix[Np * elemIn + nodeIn]
-                xout, yout = coordinates_matrix[Np * elemOut + nodeOut]
-                if np.abs(xin - xout) > tol or np.abs(yin - yout) > tol:
-                    print("NOT MATCHING !!!!")
+                # tol = 0.00001
+                # xin, yin = coordinates_matrix[Np * elemIn + nodeIn]
+                # xout, yout = coordinates_matrix[Np * elemOut + nodeOut]
+                # if np.abs(xin - xout) > tol or np.abs(yin - yout) > tol:
+                #     print("NOT MATCHING !!!!")
                 # print(f"\t(xIn = {xin:.3f}, yIn = {yin:.3f})   (xOut = {xout:.3f}, yOut = {yout:.3f})", end="\t")
                 # print("\t", elemIn, elemOut, nodeIn, nodeOut, normal_velocity)
 
@@ -169,7 +172,7 @@ def local_dot(phi, a, Nt, Np, order):
                     Flux_edge[lIn][elemIn][nodeIn] = phi[elemOut][nodeOut] * normal_velocity * length
 
                 Flux_edge[lOut][elemOut][nodeOut] = -Flux_edge[lIn][elemIn][nodeIn]
-        else:
+        else:  # boundary edge
             elemIn, = dic["elem"]
             l, = dic["number"]
             length = dic["length"]
@@ -193,19 +196,19 @@ def local_dot(phi, a, Nt, Np, order):
 
     # sum_edge_flux = sum(np.dot(Flux_edge[i], ME[i]) for i in range(3))
     sum_edge_flux = np.dot(Flux_edge[0], ME[0]) + np.dot(Flux_edge[1], ME[1]) + np.dot(Flux_edge[2], ME[2])
-    sum_all_flux = np.dot(Flux_ksi, D[0]) + np.dot(Flux_eta, D[1]) - sum_edge_flux
+    sum_all_flux = np.dot(Flux_ksi, D[0].T) + np.dot(Flux_eta, D[1].T) - sum_edge_flux
     return np.dot(sum_all_flux / det[:, np.newaxis], M_inv)
 
 
 def fwd_euler(phi, dt, m, a, Nt, Np, order):
-    for i in range(m):
+    for i in tqdm(range(m)):
         phi[i + 1] = phi[i] + dt * local_dot(phi[i], a, Nt, Np, order)
 
     return phi
 
 
 def rk22(phi, dt, m, a, Nt, Np, order):
-    for i in range(m):
+    for i in tqdm(range(m)):
         K1 = local_dot(phi[i], a, Nt, Np, order)
         K2 = local_dot(phi[i] + dt / 2. * K1, a, Nt, Np, order)
         phi[i + 1] = phi[i] + dt * K2
@@ -214,7 +217,7 @@ def rk22(phi, dt, m, a, Nt, Np, order):
 
 
 def rk44(phi, dt, m, a, Nt, Np, order):
-    for i in range(m):
+    for i in tqdm(range(m)):
         K1 = local_dot(phi[i], a, Nt, Np, order)
         if i == 0:
             blockPrint()
@@ -227,7 +230,7 @@ def rk44(phi, dt, m, a, Nt, Np, order):
 
 
 def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display=False, interactive=False):
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity, coordinates_matrix
+    global M_inv, D, ME, IJ, det, edgesInfo, velocity
 
     gmsh.initialize()
     gmsh.open(meshfilename)
@@ -265,7 +268,7 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display
 
         coords = coordinates_matrix
         fig, axs = plt.subplots(1, 3, figsize=(14., 5.), constrained_layout=True, sharex="all", sharey="all")
-        for ax, idx in zip(axs, [0, 1, 2]):
+        for ax, idx in zip(axs, [0, m//2, m]):
             # ax.tricontourf(coords[:, 0], coords[:, 1], phi[idx].flatten(), cmap=plt.get_cmap('jet'))
             ax.tripcolor(coords[:, 0], coords[:, 1], phi[idx].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
             ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5)
@@ -296,6 +299,10 @@ def my_initial_condition(x):
 def my_velocity_condition(x):
     # return np.c_[np.ones_like(x[:, 0]), np.zeros_like(x[:, 1])]
     return x * 0. + 1.
+    # x, y = x[:, 0], x[:, 1]
+    # u = -x ** 2 * y * (2 - x) ** 2 * (2 - y)
+    # v = +x * y ** 2 * (2 - x) * (2 - y) ** 2
+    # return np.c_[u, v]
 
 
 def initial_Zalezak(x):
@@ -368,7 +375,7 @@ def spyMatrices():
 
 
 if __name__ == "__main__":
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity, coordinates_matrix
+    global M_inv, D, ME, IJ, det, edgesInfo, velocity
 
-    advection2d("t2.msh", 0.01, 3, my_initial_condition, my_velocity_condition, order=2, a=1., display=True, interactive=False)
+    advection2d("t2.msh", 0.01, 50, my_initial_condition, my_velocity_condition, order=2, a=1., display=True, interactive=False)
     # spyMatrices()

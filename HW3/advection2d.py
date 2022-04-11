@@ -140,6 +140,42 @@ def get_matrices_edges(elementType, order):
     return M1, M2, M3
 
 
+
+def get_edge_flux_matrix(a, Nt, Np):
+    Flux_edge_temp = np.zeros((3, Nt, Np))
+    idx = [[[],[],[]], [[],[],[]]]
+
+    for edgeTag, dic in edgesInfo.items():  # loop over all the edges
+        if len(dic["elem"]) == 2:  # inside edge
+            elemIn, elemOut = dic["elem"]
+            lIn, lOut = dic["number"]
+
+            for nodeIn, nodeOut in zip(nodesIndices_fwd[lIn], nodesIndices_bwd[lOut]):
+                normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+
+                Flux_edge_temp[lIn][elemIn][nodeIn] = 0.5 * (1 + a * np.sign(normal_velocity)) * normal_velocity * dic["length"]
+                Flux_edge_temp[lOut][elemOut][nodeOut] = -0.5 * (1 - a * np.sign(normal_velocity)) * normal_velocity * dic["length"]
+
+                if np.sign(normal_velocity) > 0:
+                    idx[0][0].append(lOut), idx[0][1].append(elemOut), idx[0][2].append(nodeOut)
+                    idx[1][0].append(lIn),  idx[1][1].append(elemIn),  idx[1][2].append(nodeIn)
+                else:
+                    idx[0][0].append(lIn),  idx[0][1].append(elemIn),  idx[0][2].append(nodeIn)
+                    idx[1][0].append(lOut), idx[1][1].append(elemOut), idx[1][2].append(nodeOut)
+
+        else:  # boundary edge
+            elemIn, = dic["elem"]
+            l, = dic["number"]
+
+            for nodeIn in nodesIndices_fwd[l]:
+                normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+
+                Flux_edge_temp[l][elemIn][nodeIn] = 0.5 * (1 + a * np.sign(normal_velocity)) * normal_velocity * dic["length"]
+
+    return Flux_edge_temp, idx
+
+
+
 def local_dot(phi, a, Nt, Np):
     Fx = velocity[0] * phi
     Fy = velocity[1] * phi
@@ -147,6 +183,7 @@ def local_dot(phi, a, Nt, Np):
     Flux_eta = Fx * IJ[:, 1, 0, np.newaxis] + Fy * IJ[:, 1, 1, np.newaxis]
     Flux_edge = np.zeros((3, Nt, Np))
 
+    """
     for edgeTag, dic in edgesInfo.items():  # loop over all the edges
         if len(dic["elem"]) == 2:  # inside edge
             elemIn, elemOut = dic["elem"]
@@ -170,7 +207,10 @@ def local_dot(phi, a, Nt, Np):
                 avg = (phi[elemIn][nodeIn] + 0.) * 0.5
                 dif = (phi[elemIn][nodeIn] - 0.) * 0.5 * np.sign(normal_velocity)
                 Flux_edge[l][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * dic["length"]
-
+    """
+    for i in range(3):
+        Flux_edge[i] = Flux_edge_temp[i] * phi
+    Flux_edge[idx[0]] = -Flux_edge[idx[1]]
     sum_edge_flux = sum(np.dot(Flux_edge[i], ME[i]) for i in range(3))
     sum_all_flux = np.dot(Flux_ksi, D[0].T) + np.dot(Flux_eta, D[1].T) - sum_edge_flux
     return np.dot(sum_all_flux / det[:, np.newaxis], M_inv)
@@ -205,7 +245,7 @@ def rk44(phi, dt, m, a, Nt, Np):
 
 def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display=False, animation=False,
                 interactive=False):
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity, nodesIndices_fwd, nodesIndices_bwd
+    global M_inv, D, ME, IJ, det, edgesInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
     gmsh.initialize()
     gmsh.open(meshfilename)
@@ -223,6 +263,8 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display
     phi = np.zeros((m + 1, Nt * Np))
     phi[0] = f(coordinates_matrix)
     phi = phi.reshape((m + 1, Nt, Np))
+
+    Flux_edge_temp, idx = get_edge_flux_matrix(a, Nt, Np)
 
     if rktype == 'ForwardEuler':
         fwd_euler(phi, dt, m, a, Nt, Np)
@@ -392,13 +434,14 @@ if __name__ == "__main__":
     # TODO: (1) vectorize "local_dot" a bit more because currently too slow
     # TODO: (2) adapt for vector fields with divergence
 
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity, nodesIndices_fwd, nodesIndices_bwd
+    global M_inv, D, ME, IJ, det, edgesInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
     # advection2d("./mesh/square.msh", 0.005, 100, my_initial_condition, my_velocity_condition,
     #             order=3, a=1., display=False, animation=False, interactive=True)
 
     # advection2d("./mesh/square.msh", 0.005, 300, initial_Vortex, velocity_Vortex,
-    #             order=3, a=1., display=False, animation=False, interactive=True)
+    #             order=3, a=1., display=False, animation=True, interactive=True)
 
     advection2d("./mesh/circle.msh", 0.75, 200, initial_Zalezak, velocity_Zalezak,
-                order=3, a=1., display=False, animation=False, interactive=True)
+                order=3, a=1., display=False, animation=True, interactive=False)
+

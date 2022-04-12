@@ -297,7 +297,7 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display
 
     gmsh.finalize()
 
-    return
+    return phi
 
 
 def static_plots(coords, phi, m):
@@ -310,7 +310,7 @@ def static_plots(coords, phi, m):
     fig, axs = plt.subplots(3, 3, figsize=(14., 14.), constrained_layout=True, sharex="all", sharey="all")
     for i, ax in enumerate(axs.flatten()):
         # ax.tricontourf(coords[:, 0], coords[:, 1], phi[i].flatten(), cmap=plt.get_cmap('jet'))
-        ax.tripcolor(coords[:, 0], coords[:, 1], phi[(i * m) // 8].flatten(), cmap=plt.get_cmap('jet'), vmin=0,
+        ax.tripcolor(coords[:, 0], coords[:, 1], phi[(i * m) // 8].flatten(), cmap=plt.get_cmap('jet'), vmin=-1,
                      vmax=1)
         ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5)
         ax.set_aspect("equal")
@@ -320,7 +320,7 @@ def static_plots(coords, phi, m):
 def anim_plots(coords, phi, m):
     def update(t):
         ax.clear()
-        return ax.tripcolor(coords[:, 0], coords[:, 1], phi[t].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1),
+        return ax.tripcolor(coords[:, 0], coords[:, 1], phi[t].flatten(), cmap=plt.get_cmap('jet'), vmin=-1, vmax=1),
 
     _, Nt, Np = phi.shape
     node_coords = np.empty((3 * Nt, 2))
@@ -329,7 +329,7 @@ def anim_plots(coords, phi, m):
         node_coords[3 * i + 1] = coords[Np * i + 1]
         node_coords[3 * i + 2] = coords[Np * i + 2]
     fig, ax = plt.subplots(1, 1, figsize=(10., 8.))
-    colormap = ax.tripcolor(coords[:, 0], coords[:, 1], phi[0].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
+    colormap = ax.tripcolor(coords[:, 0], coords[:, 1], phi[0].flatten(), cmap=plt.get_cmap('jet'), vmin=-1, vmax=1)
     _ = fig.colorbar(colormap)
     ax.set_aspect("equal")
     fig.tight_layout()
@@ -409,7 +409,7 @@ def initial_Zalezak(x):
                 d = max(-np.hypot(xi - xr, yi - y_top), d2center - r)
 
         alpha = 3
-        phi_zero[i] = -np.tanh(alpha * d)
+        phi_zero[i] = np.tanh(alpha * d)
 
     return phi_zero
 
@@ -423,7 +423,7 @@ def velocity_Zalezak(x):
 
 def initial_Vortex(x):
     x, y = x[:, 0], x[:, 1]
-    return (x - 0.5) ** 2 + (y - 0.15) ** 2 - 0.15 ** 2
+    return (x - 0.5) ** 2 + (y - 0.75) ** 2 - 0.15 ** 2
 
 
 def velocity_Vortex(x):
@@ -452,11 +452,11 @@ if __name__ == "__main__":
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity,\
         nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
-    advection2d("./mesh/square.msh", 0.003, 300, my_initial_condition, my_velocity_condition,
-                order=3, a=1., display=False, animation=False, interactive=True)
-
-    # advection2d("./mesh/square.msh", 0.005, 300, initial_Vortex, velocity_Vortex,
+    # advection2d("./mesh/square.msh", 0.003, 300, my_initial_condition, my_velocity_condition,
     #             order=3, a=1., display=False, animation=False, interactive=True)
 
-    # advection2d("./mesh/circle.msh", 0.5, 150, initial_Zalezak, velocity_Zalezak,
-    #             order=3, a=1., display=False, animation=True, interactive=False)
+    # advection2d("./mesh/square.msh", 0.005, 800, initial_Vortex, velocity_Vortex,
+    #             order=3, a=1., display=True, animation=True, interactive=False)
+
+    advection2d("./mesh/circle.msh", 0.5, 1256, initial_Zalezak, velocity_Zalezak,
+                order=3, a=1., display=True, animation=True, interactive=False)

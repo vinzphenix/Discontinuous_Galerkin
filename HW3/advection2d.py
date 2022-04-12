@@ -140,7 +140,6 @@ def get_matrices_edges(elementType, order):
     return M1, M2, M3
 
 
-
 def get_edge_flux_matrix(a, Nt, Np):
     Flux_edge_temp = np.zeros((3, Nt, Np))
     idx = [[[],[],[]], [[],[],[]]]
@@ -172,8 +171,8 @@ def get_edge_flux_matrix(a, Nt, Np):
 
                 Flux_edge_temp[l][elemIn][nodeIn] = 0.5 * (1 + a * np.sign(normal_velocity)) * normal_velocity * dic["length"]
 
+    idx[0], idx[1] = tuple(idx[0]), tuple(idx[1])
     return Flux_edge_temp, idx
-
 
 
 def local_dot(phi, a, Nt, Np):
@@ -211,6 +210,7 @@ def local_dot(phi, a, Nt, Np):
     for i in range(3):
         Flux_edge[i] = Flux_edge_temp[i] * phi
     Flux_edge[idx[0]] = -Flux_edge[idx[1]]
+    
     sum_edge_flux = sum(np.dot(Flux_edge[i], ME[i]) for i in range(3))
     sum_all_flux = np.dot(Flux_ksi, D[0].T) + np.dot(Flux_eta, D[1].T) - sum_edge_flux
     return np.dot(sum_all_flux / det[:, np.newaxis], M_inv)

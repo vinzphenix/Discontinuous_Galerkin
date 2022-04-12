@@ -56,6 +56,14 @@ def get_edges_mapping(order, Nt, Np):
     # for key, val in dic_edges.items():
     #     print(key, val)
 
+    dic_edges_in = {}
+    dic_edges_bd = {}
+    for key, dic in dic_edges.items():
+        if len(dic["elem"]) == 1:
+            dic_edges_bd[key] = dic
+        else:
+            dic_edges_in[key] = dic
+
     # Populate initial condition
     coordinates_matrix = np.empty((Nt * Np, 2))
     for i, nodeTag in enumerate(elementNodeTags):
@@ -70,7 +78,7 @@ def get_edges_mapping(order, Nt, Np):
         [side, (side + 1) % 3][::-1] + [3 + side * (order - 1) + i for i in range(order - 1)][::-1] for side in range(3)
     ]
 
-    return coordinates_matrix, dic_edges, nodesIndices1, nodesIndices2
+    return coordinates_matrix, dic_edges_in, dic_edges_bd, nodesIndices1, nodesIndices2
 
 
 def get_matrices():
@@ -140,36 +148,34 @@ def get_matrices_edges(elementType, order):
     return M1, M2, M3
 
 
-def get_edge_flux_matrix(a, Nt, Np):
+def get_edge_flux_matrix(Nt, Np):
     Flux_edge_temp = np.zeros((3, Nt, Np))
-    idx = [[[],[],[]], [[],[],[]]]
+    idx = [[[], [], []], [[], [], []]]
 
-    for edgeTag, dic in edgesInfo.items():  # loop over all the edges
-        if len(dic["elem"]) == 2:  # inside edge
-            elemIn, elemOut = dic["elem"]
-            lIn, lOut = dic["number"]
+    for edgeTag, dic in edgesInInfo.items():  # loop over all the edges
+        elemIn, elemOut = dic["elem"]
+        lIn, lOut = dic["number"]
 
-            for nodeIn, nodeOut in zip(nodesIndices_fwd[lIn], nodesIndices_bwd[lOut]):
-                normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+        for nodeIn, nodeOut in zip(nodesIndices_fwd[lIn], nodesIndices_bwd[lOut]):
+            normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
 
-                Flux_edge_temp[lIn][elemIn][nodeIn] = 0.5 * (1 + a * np.sign(normal_velocity)) * normal_velocity * dic["length"]
-                Flux_edge_temp[lOut][elemOut][nodeOut] = -0.5 * (1 - a * np.sign(normal_velocity)) * normal_velocity * dic["length"]
+            Flux_edge_temp[lIn][elemIn][nodeIn] = (normal_velocity > 0).astype(int) * normal_velocity * dic["length"]
+            Flux_edge_temp[lOut][elemOut][nodeOut] = -(normal_velocity < 0).astype(int) * normal_velocity * dic["length"]
 
-                if np.sign(normal_velocity) > 0:
-                    idx[0][0].append(lOut), idx[0][1].append(elemOut), idx[0][2].append(nodeOut)
-                    idx[1][0].append(lIn),  idx[1][1].append(elemIn),  idx[1][2].append(nodeIn)
-                else:
-                    idx[0][0].append(lIn),  idx[0][1].append(elemIn),  idx[0][2].append(nodeIn)
-                    idx[1][0].append(lOut), idx[1][1].append(elemOut), idx[1][2].append(nodeOut)
+            if np.sign(normal_velocity) > 0:
+                idx[0][0].append(lOut), idx[0][1].append(elemOut), idx[0][2].append(nodeOut)
+                idx[1][0].append(lIn),  idx[1][1].append(elemIn),  idx[1][2].append(nodeIn)
+            else:
+                idx[0][0].append(lIn),  idx[0][1].append(elemIn),  idx[0][2].append(nodeIn)
+                idx[1][0].append(lOut), idx[1][1].append(elemOut), idx[1][2].append(nodeOut)
 
-        else:  # boundary edge
-            elemIn, = dic["elem"]
-            l, = dic["number"]
+    for edgeTag, dic in edgesBdInfo.items():
+        elemIn, = dic["elem"]
+        l, = dic["number"]
 
-            for nodeIn in nodesIndices_fwd[l]:
-                normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
-
-                Flux_edge_temp[l][elemIn][nodeIn] = 0.5 * (1 + a * np.sign(normal_velocity)) * normal_velocity * dic["length"]
+        for nodeIn in nodesIndices_fwd[l]:
+            normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+            Flux_edge_temp[l][elemIn][nodeIn] = (normal_velocity > 0).astype(int) * normal_velocity * dic["length"]
 
     idx[0], idx[1] = tuple(idx[0]), tuple(idx[1])
     return Flux_edge_temp, idx
@@ -182,35 +188,42 @@ def local_dot(phi, a, Nt, Np):
     Flux_eta = Fx * IJ[:, 1, 0, np.newaxis] + Fy * IJ[:, 1, 1, np.newaxis]
     Flux_edge = np.zeros((3, Nt, Np))
 
+    """ IDEA for improvement : needs 6 masks (l = 1,2,3 and 2 elems/side)
+    avg = phi[mask_l_A] + phi[mask_l_B]
+    dif = (phi[mask_l_A] - phi[mask_l_B]) * sign(normal_v)
+    Flux_edge[l][mask_l_A] = 0.5 * (avg + a dif) * normal_v * length
+    Flux_edge[l][mask_l_B] = -Flux_edge[l][mask_l_A]
     """
-    for edgeTag, dic in edgesInfo.items():  # loop over all the edges
-        if len(dic["elem"]) == 2:  # inside edge
-            elemIn, elemOut = dic["elem"]
-            lIn, lOut = dic["number"]
 
-            for nodeIn, nodeOut in zip(nodesIndices_fwd[lIn], nodesIndices_bwd[lOut]):
-                normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+    """  # slower, but can modulate "a" and varying vector fields
+    for edgeTag, dic in edgesInInfo.items():  # loop over all the edges inside the domain
+        elemIn, elemOut = dic["elem"]
+        lIn, lOut = dic["number"]
 
-                avg = (phi[elemIn][nodeIn] + phi[elemOut][nodeOut]) * 0.5
-                dif = (phi[elemIn][nodeIn] - phi[elemOut][nodeOut]) * 0.5 * np.sign(normal_velocity)
-                Flux_edge[lIn][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * dic["length"]
-                Flux_edge[lOut][elemOut][nodeOut] = -Flux_edge[lIn][elemIn][nodeIn]  # opposite flux for other element
+        for nodeIn, nodeOut in zip(nodesIndices_fwd[lIn], nodesIndices_bwd[lOut]):
+            normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
 
-        else:  # boundary edge
-            elemIn, = dic["elem"]
-            l, = dic["number"]
+            avg = (phi[elemIn][nodeIn] + phi[elemOut][nodeOut]) * 0.5
+            dif = (phi[elemIn][nodeIn] - phi[elemOut][nodeOut]) * 0.5 * np.sign(normal_velocity)
+            Flux_edge[lIn][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * dic["length"]
+            Flux_edge[lOut][elemOut][nodeOut] = -Flux_edge[lIn][elemIn][nodeIn]  # opposite flux for other element
 
-            for nodeIn in nodesIndices_fwd[l]:
-                normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+    for edgeTag, dic in edgesBdInfo.items():  # loop over all the edges that lie on the boundary
+        elemIn, = dic["elem"]
+        l, = dic["number"]
 
-                avg = (phi[elemIn][nodeIn] + 0.) * 0.5
-                dif = (phi[elemIn][nodeIn] - 0.) * 0.5 * np.sign(normal_velocity)
-                Flux_edge[l][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * dic["length"]
+        for nodeIn in nodesIndices_fwd[l]:
+            normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+
+            avg = (phi[elemIn][nodeIn] + 0.) * 0.5
+            dif = (phi[elemIn][nodeIn] - 0.) * 0.5 * np.sign(normal_velocity)
+            Flux_edge[l][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * dic["length"]
     """
+    
     for i in range(3):
         Flux_edge[i] = Flux_edge_temp[i] * phi
     Flux_edge[idx[0]] = -Flux_edge[idx[1]]
-    
+
     sum_edge_flux = sum(np.dot(Flux_edge[i], ME[i]) for i in range(3))
     sum_all_flux = np.dot(Flux_ksi, D[0].T) + np.dot(Flux_eta, D[1].T) - sum_edge_flux
     return np.dot(sum_all_flux / det[:, np.newaxis], M_inv)
@@ -243,9 +256,8 @@ def rk44(phi, dt, m, a, Nt, Np):
     return phi
 
 
-def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display=False, animation=False,
-                interactive=False):
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
+def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display=False, animation=False, interactive=False):
+    global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
     gmsh.initialize()
     gmsh.open(meshfilename)
@@ -254,7 +266,7 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display
     Nt, Np, M, D, IJ, det, elementType, order = get_matrices()
     M_inv = np.linalg.inv(M)
     ME = get_matrices_edges(elementType, order)
-    coordinates_matrix, edgesInfo, nodesIndices_fwd, nodesIndices_bwd = get_edges_mapping(order, Nt, Np)
+    coordinates_matrix, edgesInInfo, edgesBdInfo, nodesIndices_fwd, nodesIndices_bwd = get_edges_mapping(order, Nt, Np)
 
     velocity = np.array(u(coordinates_matrix)).reshape((Nt, Np, 2))
     velocity = np.swapaxes(velocity, 0, 2)
@@ -264,7 +276,7 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display
     phi[0] = f(coordinates_matrix)
     phi = phi.reshape((m + 1, Nt, Np))
 
-    Flux_edge_temp, idx = get_edge_flux_matrix(a, Nt, Np)
+    Flux_edge_temp, idx = get_edge_flux_matrix(Nt, Np)
 
     if rktype == 'ForwardEuler':
         fwd_euler(phi, dt, m, a, Nt, Np)
@@ -296,9 +308,9 @@ def static_plots(coords, phi, m):
         node_coords[3 * i + 1] = coords[Np * i + 1]
         node_coords[3 * i + 2] = coords[Np * i + 2]
     fig, axs = plt.subplots(3, 3, figsize=(14., 14.), constrained_layout=True, sharex="all", sharey="all")
-    for idx, ax in enumerate(axs.flatten()):
-        # ax.tricontourf(coords[:, 0], coords[:, 1], phi[idx].flatten(), cmap=plt.get_cmap('jet'))
-        ax.tripcolor(coords[:, 0], coords[:, 1], phi[(idx * m) // 8].flatten(), cmap=plt.get_cmap('jet'), vmin=0,
+    for i, ax in enumerate(axs.flatten()):
+        # ax.tricontourf(coords[:, 0], coords[:, 1], phi[i].flatten(), cmap=plt.get_cmap('jet'))
+        ax.tripcolor(coords[:, 0], coords[:, 1], phi[(i * m) // 8].flatten(), cmap=plt.get_cmap('jet'), vmin=0,
                      vmax=1)
         ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5)
         ax.set_aspect("equal")
@@ -316,10 +328,13 @@ def anim_plots(coords, phi, m):
         node_coords[3 * i] = coords[Np * i]
         node_coords[3 * i + 1] = coords[Np * i + 1]
         node_coords[3 * i + 2] = coords[Np * i + 2]
-    fig, ax = plt.subplots(1, 1, figsize=(10., 8.), constrained_layout=True)
-    _ = ax.tripcolor(coords[:, 0], coords[:, 1], phi[0].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
+    fig, ax = plt.subplots(1, 1, figsize=(10., 8.))
+    colormap = ax.tripcolor(coords[:, 0], coords[:, 1], phi[0].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
+    _ = fig.colorbar(colormap)
+    ax.set_aspect("equal")
+    fig.tight_layout()
 
-    _ = FuncAnimation(fig, update, m + 1, interval=200, repeat_delay=2000)
+    _ = FuncAnimation(fig, update, m + 1, interval=20, repeat_delay=2000)
     plt.show()
 
 
@@ -434,14 +449,14 @@ if __name__ == "__main__":
     # TODO: (1) vectorize "local_dot" a bit more because currently too slow
     # TODO: (2) adapt for vector fields with divergence
 
-    global M_inv, D, ME, IJ, det, edgesInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
+    global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity,\
+        nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
-    # advection2d("./mesh/square.msh", 0.005, 100, my_initial_condition, my_velocity_condition,
-    #             order=3, a=1., display=False, animation=False, interactive=True)
+    advection2d("./mesh/square.msh", 0.003, 300, my_initial_condition, my_velocity_condition,
+                order=3, a=1., display=False, animation=False, interactive=True)
 
     # advection2d("./mesh/square.msh", 0.005, 300, initial_Vortex, velocity_Vortex,
-    #             order=3, a=1., display=False, animation=True, interactive=True)
+    #             order=3, a=1., display=False, animation=False, interactive=True)
 
-    advection2d("./mesh/circle.msh", 0.75, 200, initial_Zalezak, velocity_Zalezak,
-                order=3, a=1., display=False, animation=True, interactive=False)
-
+    # advection2d("./mesh/circle.msh", 0.5, 150, initial_Zalezak, velocity_Zalezak,
+    #             order=3, a=1., display=False, animation=True, interactive=False)

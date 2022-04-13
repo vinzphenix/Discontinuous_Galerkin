@@ -44,24 +44,60 @@ def get_Area_and_L1(phi_0, phi_m, L):
         Area += weights @ H_(sf @ phi_m[el]) * determinants[el]
 
     print("Area : {} -> % Area loss : {}%".format(Area, (582.2 - Area)/582.2*100))
+    return Area, L1
 
+
+def plot_L1errors(hs, getFromTXT, save):
+
+    Areas = np.zeros((len(hs), 5))
+    L1 = np.zeros((len(hs), 5))
+    if not getFromTXT:
+
+        for i, h in enumerate(hs):
+            print("current h : {}".format(h))
+
+            for order in range(1,6):
+                print("order = {}".format(order))
+                meshfilename = "./mesh/circle_h" + str(h) + ".msh"
+                phi = advection2d(meshfilename, 0.25, 2512, initial_Zalezak, velocity_Zalezak,
+                                  order=order, a=1., display=False, animation=False, interactive=False)
+
+                gmsh.initialize()
+                gmsh.open(meshfilename)
+                gmsh.model.mesh.setOrder(order)
+
+                area, l1 = get_Area_and_L1(phi[0], phi[-1], 144.29)
+                Areas[i, order-1] = area
+                L1[i, order-1] = l1
+                gmsh.finalize()
+
+        np.savetxt("./Figures/L1.txt", L1, fmt="%.5f")
+        np.savetxt("./Figures/Area.txt", Areas, fmt="%.5f")
+
+    else:
+        L1 = np.loadtxt('./Figures/L1.txt')
+        Areas = np.loadtxt('./Figures/Area.txt')
+
+
+    fig, ax = plt.subplots(1, 1, figsize=(10., 6.), constrained_layout=True)
+
+    for i, h in enumerate(hs):
+        ax.plot(np.arange(5) + 1, L1[i], 'o-', label="$h = {}$".format(h))
+
+    print(Areas)
+    print(L1)
+    ax.legend(fontsize=ftSz3)
+    ax.grid(ls=':')
+    ax.set_xlabel("order", fontsize=ftSz2)
+    ax.set_ylabel("$L_1$ error", fontsize=ftSz2)
+    ax.set_yscale("log")
+
+    if save:
+        fig.savefig("./Figures/L1_errors.svg", format="svg", bbox_inches='tight')
+    plt.show()
 
 
 if __name__ == "__main__":
-    print("hello")
 
-    global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity,\
-        nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
-
-    phi = advection2d("./mesh/circle.msh", 0.5, 1256, initial_Zalezak, velocity_Zalezak,
-                order=3, a=1., display=False, animation=False, interactive=False)
-
-    meshfilename = "./mesh/circle.msh"
-    order = 3
-    gmsh.initialize()
-    gmsh.open(meshfilename)
-    gmsh.model.mesh.setOrder(order)
-
-    get_Area_and_L1(phi[0], phi[-1], 144.29)
-
-    gmsh.finalize()
+    # TAKES AN ETERNITY
+    plot_L1errors([2,4,6,8], getFromTXT=True, save=False)

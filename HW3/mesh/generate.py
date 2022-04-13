@@ -96,6 +96,6 @@ def create_rectangle(filename, elemSizeRatio):
 
 
 # create_square("square.msh", elemSizeRatio=1./20.)
-create_circle("circle.msh", elemSizeRatio=1./30.)
+create_circle("circle_h8.msh", elemSizeRatio=8./100.)
 # create_hole("hole.msh", elemSizeRatio=1./20.)
 # create_rectangle("rectangle.msh", elemSizeRatio=1./20.)

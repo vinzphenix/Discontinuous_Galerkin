@@ -257,7 +257,7 @@ def rk44(phi, dt, m, a, Nt, Np):
     return phi
 
 
-def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display=False, animation=False, interactive=False):
+def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display=False, animation=False, interactive=False, plotReturn=False):
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
     gmsh.initialize()
@@ -298,7 +298,10 @@ def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., display
 
     gmsh.finalize()
 
-    return phi
+    if plotReturn:
+        return phi, coordinates_matrix
+
+    return phi[-1]
 
 
 def static_plots(coords, phi, m):

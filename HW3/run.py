@@ -7,7 +7,7 @@ from matplotlib.animation import FuncAnimation
 from scipy.special import roots_legendre
 from numpy import pi, sin, sqrt
 from tqdm import tqdm
-from advection2d import advection2d, initial_Zalezak, velocity_Zalezak
+from advection2d import advection2d, initial_Zalezak, velocity_Zalezak, initial_Vortex, velocity_Vortex
 
 ftSz1, ftSz2, ftSz3 = 20, 15, 12
 plt.rcParams["text.usetex"] = False
@@ -54,13 +54,10 @@ def plot_L1errors(hs, getFromTXT, save):
     if not getFromTXT:
 
         for i, h in enumerate(hs):
-            print("current h : {}".format(h))
-
             for order in range(1,6):
-                print("order = {}".format(order))
                 meshfilename = "./mesh/circle_h" + str(h) + ".msh"
-                phi = advection2d(meshfilename, 0.25, 2512, initial_Zalezak, velocity_Zalezak,
-                                  order=order, a=1., display=False, animation=False, interactive=False)
+                phi, _ = advection2d(meshfilename, 0.25, 2512, initial_Zalezak, velocity_Zalezak,
+                                  order=order, a=1., display=False, animation=False, interactive=False, plotReturn=True)
 
                 gmsh.initialize()
                 gmsh.open(meshfilename)
@@ -97,7 +94,36 @@ def plot_L1errors(hs, getFromTXT, save):
     plt.show()
 
 
+iso_zero = lambda x : (np.abs(x) <= 1e-3).astype(int)
+
+
+def iso_zero_contour(h, order, dt, meshfilename):
+
+    m = int(4//dt)+1
+    phi, coords = advection2d(meshfilename, dt, m, initial_Vortex, velocity_Vortex,
+                 order=order, a=1., display=False, animation=False, interactive=False, plotReturn=True)
+
+    _, Nt, Np = phi.shape
+    node_coords = np.empty((3 * Nt, 2))
+    for i in range(Nt):
+        node_coords[3 * i] = coords[Np * i]
+        node_coords[3 * i + 1] = coords[Np * i + 1]
+        node_coords[3 * i + 2] = coords[Np * i + 2]
+
+
+    fig, axs = plt.subplots(1, 5, figsize=(18., 4.), constrained_layout=True, sharex="all", sharey="all")
+    for i, ax in enumerate(axs.flatten()):
+        ax.tricontour(coords[:, 0], coords[:, 1], phi[(i * m) // 5].flatten(), 0, colors="mediumblue")
+        ax.set_aspect("equal")
+        ax.set_xlabel("t = {} s".format(i))
+
+    fig.suptitle('h = {}, order = {}'.format(h, order))
+    plt.show()
+
+
 if __name__ == "__main__":
 
     # TAKES AN ETERNITY
     plot_L1errors([2,4,6,8], getFromTXT=True, save=False)
+
+    iso_zero_contour(h=1/20, order=3, dt=0.005, meshfilename="./mesh/square.msh")

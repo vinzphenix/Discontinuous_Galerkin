@@ -169,13 +169,14 @@ def get_edge_flux_matrix(Nt, Np):
                 idx[0][0].append(lIn),  idx[0][1].append(elemIn),  idx[0][2].append(nodeIn)
                 idx[1][0].append(lOut), idx[1][1].append(elemOut), idx[1][2].append(nodeOut)
 
-    for edgeTag, dic in edgesBdInfo.items():
-        elemIn, = dic["elem"]
-        l, = dic["number"]
-
-        for nodeIn in nodesIndices_fwd[l]:
-            normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
-            Flux_edge_temp[l][elemIn][nodeIn] = normal_velocity * dic["length"]#(normal_velocity > 0).astype(int) * normal_velocity * dic["length"]
+    # Velocity is in fact 0 on boundary
+    # for edgeTag, dic in edgesBdInfo.items():
+    #     elemIn, = dic["elem"]
+    #     l, = dic["number"]
+    #
+    #     for nodeIn in nodesIndices_fwd[l]:
+    #         normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+    #         Flux_edge_temp[l][elemIn][nodeIn] = (normal_velocity > 0).astype(int) * normal_velocity * dic["length"]
 
     idx[0], idx[1] = tuple(idx[0]), tuple(idx[1])
     return Flux_edge_temp, idx
@@ -458,5 +459,5 @@ if __name__ == "__main__":
     # advection2d("./mesh/square.msh", 0.005, 800, initial_Vortex, velocity_Vortex,
     #             order=3, a=1., display=True, animation=True, interactive=False)
 
-    advection2d("./mesh/circle_h2.msh", 0.25, 1256, initial_Zalezak, velocity_Zalezak,
-                order=5, a=1., display=True, animation=True, interactive=False)
+    advection2d("./mesh/circle_h4.msh", 0.5, 1256, initial_Zalezak, velocity_Zalezak,
+                order=3, a=1., display=True, animation=True, interactive=False)

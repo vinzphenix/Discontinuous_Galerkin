@@ -128,7 +128,6 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
 
     fig, axs = plt.subplots(len(orders), len(names), figsize=(11., 10.), sharex="all", sharey="all")
     fig.tight_layout()
-    cs = [None for k in range(n_times + 1)]
 
     for i, name in enumerate(names):
 
@@ -146,13 +145,9 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
             node_coords[0::3] = coords[0::Np]
             node_coords[1::3] = coords[1::Np]
             node_coords[2::3] = coords[2::Np]
-            # for k in range(Nt):
-            #     node_coords[3 * k] = coords[Np * k]
-            #     node_coords[3 * k + 1] = coords[Np * k + 1]
-            #     node_coords[3 * k + 2] = coords[Np * k + 2]
 
             for k in range(n_times+1):
-                cs[k] = ax.tricontour(coords[:, 0], coords[:, 1], phi[(k * m) // n_times].flatten(),
+                ax.tricontour(coords[:, 0], coords[:, 1], phi[(k * m) // n_times].flatten(),
                               [level], colors=f"C{k}")
                 ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
                 ax.set_aspect("equal")
@@ -173,7 +168,7 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
 
 
 if __name__ == "__main__":
-    save_global = True
+    save_global = False
     plt.rcParams["text.usetex"] = save_global
 
     plot_L1errors([2, 4, 6, 8], getFromTXT=True, save=save_global)  # TAKES AN ETERNITY

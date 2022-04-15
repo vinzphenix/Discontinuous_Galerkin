@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import gmsh
-from advection2dOLD import advection2d, initial_Zalezak, velocity_Zalezak, \
+from advection2d import advection2d, initial_Zalezak, velocity_Zalezak, \
     initial_Vortex, velocity_Vortex, initial_VortexNew
 
 ftSz1, ftSz2, ftSz3 = 20, 15, 12

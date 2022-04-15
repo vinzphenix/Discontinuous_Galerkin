@@ -413,7 +413,16 @@ def initial_Zalezak(x):
                 d = max(-np.hypot(xi - xr, yi - y_top), d2center - r)
 
         alpha = 3
-        phi_zero[i] = np.tanh(alpha * d)
+
+        # version TA
+        if (np.exp(d) - 1 < -1):
+            phi_zero[i] = -1
+        elif (np.exp(d) - 1 > 1):
+            phi_zero[i] = 1
+        else:
+            phi_zero[i] = np.exp(d) - 1
+
+        #phi_zero[i] = np.tanh(alpha * d)
 
     return phi_zero
 
@@ -457,7 +466,7 @@ if __name__ == "__main__":
         nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
     # advection2d("./mesh/square.msh", 0.003, 300, my_initial_condition, my_velocity_condition,
-    #             order=3, a=1., display=False, animation=False, interactive=True)
+    #             order=3, a=1., display=False, animation=True, interactive=False)
 
     # advection2d("./mesh/square.msh", 0.005, 800, initial_Vortex, velocity_Vortex,
     #             order=3, a=1., display=True, animation=True, interactive=False)

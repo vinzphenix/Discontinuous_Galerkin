@@ -114,8 +114,35 @@ def iso_zero_contour(h, order, dt, meshfilename):
     fig, axs = plt.subplots(1, 5, figsize=(18., 4.), constrained_layout=True, sharex="all", sharey="all")
     for i, ax in enumerate(axs.flatten()):
         ax.tricontour(coords[:, 0], coords[:, 1], phi[(i * m) // 5].flatten(), 0, colors="mediumblue")
+        # , alpha=0.5, linewidths=5.0
         ax.set_aspect("equal")
         ax.set_xlabel("t = {} s".format(i))
+
+    fig.suptitle('h = {}, order = {}'.format(h, order))
+    plt.show()
+
+
+def iso_zero_contour_zalezak(h, order, dt, meshfilename):
+
+    m = int(628//dt)
+    phi, coords = advection2d(meshfilename, dt, m, initial_Zalezak, velocity_Zalezak,
+                 order=order, a=1., display=False, animation=False, interactive=False, plotReturn=True)
+
+    _, Nt, Np = phi.shape
+    node_coords = np.empty((3 * Nt, 2))
+    for i in range(Nt):
+        node_coords[3 * i] = coords[Np * i]
+        node_coords[3 * i + 1] = coords[Np * i + 1]
+        node_coords[3 * i + 2] = coords[Np * i + 2]
+
+
+    fig, ax = plt.subplots(1, 1, figsize=(7., 7.), constrained_layout=True, sharex="all", sharey="all")
+    ax.tricontour(coords[:, 0], coords[:, 1], phi[0].flatten(), 0, colors='black', alpha=0.5, linewidths=3.0)
+    ax.tricontour(coords[:, 0], coords[:, 1], phi[-1].flatten(), 0, colors='red')
+    #ax.set_aspect("equal")
+    ax.set_xlim(30, 70)
+    ax.set_ylim(55, 95)
+    #ax.set_xlabel("t = {} s".format(i))
 
     fig.suptitle('h = {}, order = {}'.format(h, order))
     plt.show()
@@ -124,6 +151,8 @@ def iso_zero_contour(h, order, dt, meshfilename):
 if __name__ == "__main__":
 
     # TAKES AN ETERNITY
-    plot_L1errors([2,4,6,8], getFromTXT=True, save=False)
+    #plot_L1errors([2,4,6,8], getFromTXT=True, save=False)
 
-    iso_zero_contour(h=1/20, order=3, dt=0.005, meshfilename="./mesh/square.msh")
+    #iso_zero_contour(h=1/20, order=3, dt=0.005, meshfilename="./mesh/square.msh")
+
+    iso_zero_contour_zalezak(h=4, order=3, dt=0.25, meshfilename="./mesh/circle_h4.msh")

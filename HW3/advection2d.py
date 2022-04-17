@@ -6,7 +6,7 @@ import sys
 import os
 from matplotlib.animation import FuncAnimation
 from scipy.special import roots_legendre
-from numpy import pi, sin, sqrt
+from numpy import pi, sin, cos, sqrt
 from tqdm import tqdm
 
 ftSz1, ftSz2, ftSz3 = 20, 15, 12
@@ -168,19 +168,16 @@ def get_edge_flux_matrix(Nt, Np):
     return flux_edge_temp, indices
 
 
-def local_dot(phi, a, Nt, Np):
-    Fx = velocity[0] * phi
-    Fy = velocity[1] * phi
+def local_dot(phi, a, Nt, Np, t=0.):
+    # T = 8.
+    # velocity_local = velocity * cos(pi * t / T)
+    velocity_local = velocity
+
+    Fx = velocity_local[0] * phi
+    Fy = velocity_local[1] * phi
     Flux_ksi = Fx * IJ[:, 0, 0, np.newaxis] + Fy * IJ[:, 0, 1, np.newaxis]
     Flux_eta = Fx * IJ[:, 1, 0, np.newaxis] + Fy * IJ[:, 1, 1, np.newaxis]
     Flux_edge = np.zeros((3, Nt, Np))
-
-    """ IDEA for improvement : needs 6 masks (l = 1,2,3 and 2 elems/side)
-    avg = phi[mask_l_A] + phi[mask_l_B]
-    dif = (phi[mask_l_A] - phi[mask_l_B]) * sign(normal_v)
-    Flux_edge[l][mask_l_A] = 0.5 * (avg + a dif) * normal_v * length
-    Flux_edge[l][mask_l_B] = -Flux_edge[l][mask_l_A]
-    """
 
     """  # slower, but can modulate "a" and varying vector fields
     for edgeTag, dic in edgesInInfo.items():  # loop over all the edges inside the domain
@@ -188,7 +185,7 @@ def local_dot(phi, a, Nt, Np):
         lIn, lOut = dic["number"]
 
         for nodeIn, nodeOut in zip(nodesIndices_fwd[lIn], nodesIndices_bwd[lOut]):
-            normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+            normal_velocity = np.dot(velocity_local[:, elemIn, nodeIn], dic["normal"])
 
             avg = (phi[elemIn][nodeIn] + phi[elemOut][nodeOut]) * 0.5
             dif = (phi[elemIn][nodeIn] - phi[elemOut][nodeOut]) * 0.5 * np.sign(normal_velocity)
@@ -200,7 +197,7 @@ def local_dot(phi, a, Nt, Np):
         l, = dic["number"]
 
         for nodeIn in nodesIndices_fwd[l]:
-            normal_velocity = np.dot(velocity[:, elemIn, nodeIn], dic["normal"])
+            normal_velocity = np.dot(velocity_local[:, elemIn, nodeIn], dic["normal"])
 
             avg = (phi[elemIn][nodeIn] + 0.) * 0.5
             dif = (phi[elemIn][nodeIn] - 0.) * 0.5 * np.sign(normal_velocity)
@@ -210,6 +207,8 @@ def local_dot(phi, a, Nt, Np):
     for i in range(3):
         Flux_edge[i] = Flux_edge_temp[i] * phi
     Flux_edge[idx[0]] = -Flux_edge[idx[1]]
+    
+    # """
 
     sum_edge_flux = sum(np.dot(Flux_edge[i], ME[i]) for i in range(3))
     sum_all_flux = np.dot(Flux_ksi, D[0].T) + np.dot(Flux_eta, D[1].T) - sum_edge_flux
@@ -234,10 +233,11 @@ def rk22(phi, dt, m, a, Nt, Np):
 
 def rk44(phi, dt, m, a, Nt, Np):
     for i in tqdm(range(m)):
-        K1 = local_dot(phi[i], a, Nt, Np)
-        K2 = local_dot(phi[i] + K1 * dt / 2., a, Nt, Np)
-        K3 = local_dot(phi[i] + K2 * dt / 2., a, Nt, Np)
-        K4 = local_dot(phi[i] + K3 * dt, a, Nt, Np)
+        t = i * dt
+        K1 = local_dot(phi[i], a, Nt, Np, t)
+        K2 = local_dot(phi[i] + K1 * dt / 2., a, Nt, Np, t + dt / 2.)
+        K3 = local_dot(phi[i] + K2 * dt / 2., a, Nt, Np, t + dt / 2.)
+        K4 = local_dot(phi[i] + K3 * dt, a, Nt, Np, t + dt)
         phi[i + 1] = phi[i] + dt * (K1 + 2. * K2 + 2. * K3 + K4) / 6.
 
     return phi
@@ -339,13 +339,14 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
 
     if save:
         gmsh.option.set_number("General.Verbosity", 2)
-        for t in tqdm(range(m + 1)):
+        ratio = 5
+        for t in tqdm(range(0, m + 1, ratio)):
             data = phi[t].reshape(Nt * Np, -1)
             gmsh.view.addModelData(viewTag, 0, modelName, "NodeData", elementNodeTags, data, numComponents=1, time=t * dt)
 
             gmsh.option.set_number("View.RangeType", 2)
-            gmsh.option.set_number("View.CustomMin", -0.15)
-            gmsh.option.set_number("View.CustomMax", 1.15)
+            gmsh.option.set_number("View.CustomMin", -0.25)  # -0.025
+            gmsh.option.set_number("View.CustomMax", 1.25)  # 0.825
 
             # gmsh.option.set_number("View.AutoPosition", 0)
             # gmsh.option.set_number("View.PositionX", 125)
@@ -353,7 +354,7 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
             # gmsh.option.set_number("View.OffsetX", 400)
             # gmsh.option.set_number("View.OffsetY", 15)
 
-            gmsh.write(f"./Animations/vortex_{t:04d}.jpg")
+            gmsh.write(f"./Animations/vortex_{t // ratio:04d}.jpg")
 
     else:
         for t in range(0, m + 1, 5):
@@ -466,8 +467,8 @@ if __name__ == "__main__":
     # advection2d("./mesh/square.msh", 0.003, 500, my_initial_condition, my_velocity_condition, interactive=True,
     #             order=3, a=1., display=False, animation=False, save=False)
 
-    advection2d("./mesh/square.msh", 0.005, 800, initial_VortexNew, velocity_Vortex, interactive=False,
-                order=3, a=1., display=False, animation=True, save=False)
+    # advection2d("./mesh/square.msh", 0.004, 200, initial_Vortex, velocity_Vortex, interactive=True,
+    #             order=3, a=1., display=False, animation=False, save=False)
 
-    # advection2d("./mesh/circle_h2.msh", 0.5, 2*628, initial_Zalezak, velocity_Zalezak, interactive=False,
-    #             order=3, a=1., display=False, animation=True, save=False)
+    advection2d("./mesh/circle_h6.msh", 1.0, 628, initial_Zalezak, velocity_Zalezak, interactive=True,
+                order=3, a=1., display=False, animation=False, save=False)

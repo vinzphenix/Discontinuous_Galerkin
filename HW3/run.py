@@ -73,7 +73,7 @@ def plot_L1errors(hs, getFromTXT, save):
     for i, h in enumerate(hs):
         ax.plot(np.arange(5) + 1, L1[i], 'o-', label="$h = {}$".format(h))
 
-    print((Areas-582.2) / 582.2 * 100)
+    print((Areas - 582.2) / 582.2 * 100)
     # print(L1)
     ax.legend(fontsize=ftSz3)
     ax.grid(ls=':')
@@ -91,9 +91,9 @@ iso_zero = lambda x: (np.abs(x) <= 1e-3).astype(int)
 
 
 def iso_zero_contour(filename, tend, n_times, orders, dt_list, init, velocity, level, save=False):
-
     meshfilename = f"./mesh/{filename}.msh"
-    fig, axs = plt.subplots(len(orders), n_times, figsize=(10.5, 6.), constrained_layout=True, sharex="all", sharey="all")
+    fig, axs = plt.subplots(len(orders), n_times, figsize=(10.5, 6.), constrained_layout=True, sharex="all",
+                            sharey="all")
     # n_times = len(axs[0])
 
     for i, (dt, order) in enumerate(zip(dt_list, orders)):
@@ -109,7 +109,8 @@ def iso_zero_contour(filename, tend, n_times, orders, dt_list, init, velocity, l
             node_coords[3 * j + 2] = coords[Np * j + 2]
 
         for j, ax in enumerate(axs[i, :]):
-            ax.tricontour(coords[:, 0], coords[:, 1], phi[(j * m) // (n_times-1)].flatten(), [level], colors="mediumblue")
+            ax.tricontour(coords[:, 0], coords[:, 1], phi[(j * m) // (n_times - 1)].flatten(), [level],
+                          colors="mediumblue")
             ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
             ax.set_aspect("equal")
 
@@ -125,7 +126,6 @@ def iso_zero_contour(filename, tend, n_times, orders, dt_list, init, velocity, l
 
 
 def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False):
-
     fig, axs = plt.subplots(len(orders), len(names), figsize=(11., 10.), sharex="all", sharey="all")
     fig.tight_layout()
 
@@ -146,7 +146,7 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
             node_coords[1::3] = coords[1::Np]
             node_coords[2::3] = coords[2::Np]
 
-            for k in range(n_times+1):
+            for k in range(n_times + 1):
                 ax.tricontour(coords[:, 0], coords[:, 1], phi[(k * m) // n_times].flatten(),
                               [level], colors=f"C{k}")
                 ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
@@ -168,10 +168,9 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
 
 
 def iso_contour_zalezak_zoomed(h, order, dt, meshfilename, save=False):
-
-    m = int(628//dt)
+    m = int(628 // dt)
     phi, coords = advection2d(meshfilename, dt, m, initial_Zalezak, velocity_Zalezak,
-                 order=order, a=1., display=False, animation=False, interactive=False, plotReturn=True)
+                              order=order, a=1., display=False, animation=False, interactive=False, plotReturn=True)
 
     _, Nt, Np = phi.shape
     node_coords = np.empty((3 * Nt, 2))
@@ -180,16 +179,16 @@ def iso_contour_zalezak_zoomed(h, order, dt, meshfilename, save=False):
         node_coords[3 * i + 1] = coords[Np * i + 1]
         node_coords[3 * i + 2] = coords[Np * i + 2]
 
-
     fig, ax = plt.subplots(1, 1, figsize=(5., 5.), constrained_layout=True, sharex="all", sharey="all")
     ax.tricontour(coords[:, 0], coords[:, 1], phi[0].flatten(), [0.5], colors='blue', alpha=0.5, linewidths=3.0)
     ax.tricontour(coords[:, 0], coords[:, 1], phi[-1].flatten(), [0.5], colors='purple')
     ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
-    #ax.set_aspect("equal")
+    # ax.set_aspect("equal")
     ax.set_xlim(30, 70)
     ax.set_ylim(55, 95)
 
-    axin = ax.inset_axes([0.77, 0.03, 0.2, 0.2])  # (0.77, 0.03) = coins inférieur gauche du nouveau box, 0.2 = hauteur et longueur
+    # (0.77, 0.03) = coins inférieur gauche du nouveau box, 0.2 = hauteur et longueur
+    axin = ax.inset_axes([0.77, 0.03, 0.2, 0.2])
     axin.tricontour(coords[:, 0], coords[:, 1], phi[0].flatten(), [0.5], colors='blue', alpha=0.5, linewidths=3.0)
     axin.tricontour(coords[:, 0], coords[:, 1], phi[-1].flatten(), [0.5], colors='purple')
     axin.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
@@ -208,7 +207,6 @@ def iso_contour_zalezak_zoomed(h, order, dt, meshfilename, save=False):
     axin2.set_xticklabels([])
     axin2.set_yticklabels([])
     ax.indicate_inset_zoom(axin2, edgecolor="black")
-
 
     if save:
         fig.savefig(f"./Figures/zalezak_zoomed.svg", format="svg", bbox_inches='tight')

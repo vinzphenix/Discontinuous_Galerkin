@@ -466,8 +466,8 @@ if __name__ == "__main__":
     # advection2d("./mesh/square.msh", 0.003, 500, my_initial_condition, my_velocity_condition, interactive=True,
     #             order=3, a=1., display=False, animation=False, save=False)
 
-    # advection2d("./mesh/square.msh", 0.005, 800, initial_Vortex, velocity_Vortex, interactive=False,
-    #             order=3, a=1., display=False, animation=True, save=False)
-
-    advection2d("./mesh/circle_h8.msh", 0.5, 2*628, initial_Zalezak, velocity_Zalezak, interactive=False,
+    advection2d("./mesh/square.msh", 0.005, 800, initial_VortexNew, velocity_Vortex, interactive=False,
                 order=3, a=1., display=False, animation=True, save=False)
+
+    # advection2d("./mesh/circle_h2.msh", 0.5, 2*628, initial_Zalezak, velocity_Zalezak, interactive=False,
+    #             order=3, a=1., display=False, animation=True, save=False)

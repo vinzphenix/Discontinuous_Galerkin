@@ -7,7 +7,7 @@ from advection2d import advection2d, initial_Zalezak, velocity_Zalezak, \
 ftSz1, ftSz2, ftSz3 = 20, 15, 12
 plt.rcParams['font.family'] = 'monospace'
 
-H_ = lambda x: (x <= 0).astype(int)
+H_ = lambda x: (x > 0.5).astype(int)
 
 
 def get_Area_and_L1(phi_0, phi_m, L):
@@ -73,7 +73,7 @@ def plot_L1errors(hs, getFromTXT, save):
     for i, h in enumerate(hs):
         ax.plot(np.arange(5) + 1, L1[i], 'o-', label="$h = {}$".format(h))
 
-    # print(Areas)
+    print((Areas-582.2) / 582.2 * 100)
     # print(L1)
     ax.legend(fontsize=ftSz3)
     ax.grid(ls=':')
@@ -167,11 +167,60 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
         plt.show()
 
 
+def iso_contour_zalezak_zoomed(h, order, dt, meshfilename, save=False):
+
+    m = int(628//dt)
+    phi, coords = advection2d(meshfilename, dt, m, initial_Zalezak, velocity_Zalezak,
+                 order=order, a=1., display=False, animation=False, interactive=False, plotReturn=True)
+
+    _, Nt, Np = phi.shape
+    node_coords = np.empty((3 * Nt, 2))
+    for i in range(Nt):
+        node_coords[3 * i] = coords[Np * i]
+        node_coords[3 * i + 1] = coords[Np * i + 1]
+        node_coords[3 * i + 2] = coords[Np * i + 2]
+
+
+    fig, ax = plt.subplots(1, 1, figsize=(5., 5.), constrained_layout=True, sharex="all", sharey="all")
+    ax.tricontour(coords[:, 0], coords[:, 1], phi[0].flatten(), [0.5], colors='blue', alpha=0.5, linewidths=3.0)
+    ax.tricontour(coords[:, 0], coords[:, 1], phi[-1].flatten(), [0.5], colors='purple')
+    ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
+    #ax.set_aspect("equal")
+    ax.set_xlim(30, 70)
+    ax.set_ylim(55, 95)
+
+    axin = ax.inset_axes([0.77, 0.03, 0.2, 0.2])  # (0.77, 0.03) = coins inférieur gauche du nouveau box, 0.2 = hauteur et longueur
+    axin.tricontour(coords[:, 0], coords[:, 1], phi[0].flatten(), [0.5], colors='blue', alpha=0.5, linewidths=3.0)
+    axin.tricontour(coords[:, 0], coords[:, 1], phi[-1].flatten(), [0.5], colors='purple')
+    axin.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
+    axin.set_xlim(51.5, 55)
+    axin.set_ylim(59, 63)
+    axin.set_xticklabels([])
+    axin.set_yticklabels([])
+    ax.indicate_inset_zoom(axin, edgecolor="black")
+
+    axin2 = ax.inset_axes([0.03, 0.77, 0.2, 0.2])
+    axin2.tricontour(coords[:, 0], coords[:, 1], phi[0].flatten(), [0.5], colors='blue', alpha=0.5, linewidths=3.0)
+    axin2.tricontour(coords[:, 0], coords[:, 1], phi[-1].flatten(), [0.5], colors='purple')
+    axin2.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5, color='lightgrey')
+    axin2.set_xlim(46.5, 49)
+    axin2.set_ylim(83, 86)
+    axin2.set_xticklabels([])
+    axin2.set_yticklabels([])
+    ax.indicate_inset_zoom(axin2, edgecolor="black")
+
+
+    if save:
+        fig.savefig(f"./Figures/zalezak_zoomed.svg", format="svg", bbox_inches='tight')
+
+    plt.show()
+
+
 if __name__ == "__main__":
     save_global = False
     plt.rcParams["text.usetex"] = save_global
 
-    plot_L1errors([2, 4, 6, 8], getFromTXT=True, save=save_global)  # TAKES AN ETERNITY
+    # plot_L1errors([2, 4, 6, 8], getFromTXT=True, save=save_global)  # TAKES AN ETERNITY
 
     # iso_zero_contour("square_low", 4., n_times=5, orders=[1, 3, 5], dt_list=[0.025, 0.012, 0.0065],
     #                  init=initial_Vortex, velocity=velocity_Vortex, level=0., save=save_global)
@@ -182,3 +231,4 @@ if __name__ == "__main__":
 
     # iso_contour_zalezak(["circle_h8", "circle_h6", "circle_h4"], 628., n_times=4, orders=[1, 3, 5], level=0.5,
     #                     dt_list=[[0.5, 0.25, 0.10], [0.5, 0.25, 0.10], [0.5, 0.25, 0.10]], save=save_global)
+    iso_contour_zalezak_zoomed(h=2, order=3, dt=0.25, meshfilename="./mesh/circle_h2.msh", save=save_global)

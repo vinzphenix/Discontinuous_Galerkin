@@ -157,17 +157,13 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
         for order, ax in zip(orders, axs[0, :]):
             ax.set_title(r"$p = {:d}$".format(order), fontsize=ftSz2)
 
-    # lines = [cs[k].collections[0] for k in range(n_times + 1)]
-    # labels = [r'$t={:.1f}$'.format((k * tend) / n_times) for k in range(n_times + 1)]
-    # _ = fig.legend(lines, labels, fontsize=ftSz3)
-
     if save:
         fig.savefig(f"./Figures/zalezak_overview.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
 
-def iso_contour_zalezak_zoomed(h, order, dt, meshfilename, save=False):
+def iso_contour_zalezak_zoomed(order, dt, meshfilename, save=False):
     m = int(628 // dt)
     phi, coords = advection2d(meshfilename, dt, m, initial_Zalezak, velocity_Zalezak,
                               order=order, a=1., display=False, animation=False, interactive=False, plotReturn=True)
@@ -210,15 +206,15 @@ def iso_contour_zalezak_zoomed(h, order, dt, meshfilename, save=False):
 
     if save:
         fig.savefig(f"./Figures/zalezak_zoomed.svg", format="svg", bbox_inches='tight')
-
-    plt.show()
+    else:
+        plt.show()
 
 
 if __name__ == "__main__":
     save_global = False
     plt.rcParams["text.usetex"] = save_global
 
-    # plot_L1errors([2, 4, 6, 8], getFromTXT=True, save=save_global)  # TAKES AN ETERNITY
+    plot_L1errors([2, 4, 6, 8], getFromTXT=True, save=save_global)  # TAKES AN ETERNITY
 
     # iso_zero_contour("square_low", 4., n_times=5, orders=[1, 3, 5], dt_list=[0.025, 0.012, 0.0065],
     #                  init=initial_Vortex, velocity=velocity_Vortex, level=0., save=save_global)
@@ -229,4 +225,4 @@ if __name__ == "__main__":
 
     # iso_contour_zalezak(["circle_h8", "circle_h6", "circle_h4"], 628., n_times=4, orders=[1, 3, 5], level=0.5,
     #                     dt_list=[[0.5, 0.25, 0.10], [0.5, 0.25, 0.10], [0.5, 0.25, 0.10]], save=save_global)
-    iso_contour_zalezak_zoomed(h=2, order=3, dt=0.25, meshfilename="./mesh/circle_h2.msh", save=save_global)
+    # iso_contour_zalezak_zoomed(order=3, dt=0.25, meshfilename="./mesh/circle_h2.msh", save=save_global)

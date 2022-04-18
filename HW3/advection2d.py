@@ -179,7 +179,7 @@ def local_dot(phi, a, Nt, Np, t=0.):
     Flux_eta = Fx * IJ[:, 1, 0, np.newaxis] + Fy * IJ[:, 1, 1, np.newaxis]
     Flux_edge = np.zeros((3, Nt, Np))
 
-    """  # slower, but can modulate "a" and varying vector fields
+    """  # slower, but can modulate "a" and can handle vector fields changing in time
     for edgeTag, dic in edgesInInfo.items():  # loop over all the edges inside the domain
         elemIn, elemOut = dic["elem"]
         lIn, lOut = dic["number"]
@@ -311,7 +311,7 @@ def static_plots(coords, phi, m):
 def anim_plots(coords, phi, m):
     def update(t):
         ax.clear()
-        return ax.tripcolor(coords[:, 0], coords[:, 1], phi[t].flatten(), cmap=plt.get_cmap('jet')),
+        return ax.tripcolor(coords[:, 0], coords[:, 1], phi[t].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1),
 
     _, Nt, Np = phi.shape
     node_coords = np.empty((3 * Nt, 2))
@@ -320,7 +320,7 @@ def anim_plots(coords, phi, m):
         node_coords[3 * i + 1] = coords[Np * i + 1]
         node_coords[3 * i + 2] = coords[Np * i + 2]
     fig, ax = plt.subplots(1, 1, figsize=(10., 8.))
-    colormap = ax.tripcolor(coords[:, 0], coords[:, 1], phi[0].flatten(), cmap=plt.get_cmap('jet'))
+    colormap = ax.tripcolor(coords[:, 0], coords[:, 1], phi[0].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
     _ = fig.colorbar(colormap)
     ax.set_aspect("equal")
     fig.tight_layout()
@@ -331,7 +331,6 @@ def anim_plots(coords, phi, m):
 
 def anim_gmsh(elementType, phi, m, dt, save=False):
     _, Nt, Np = phi.shape
-    print(phi.shape)
     gmsh.fltk.initialize()
     viewTag = gmsh.view.add("phi")
     modelName = gmsh.model.list()[0]
@@ -354,7 +353,7 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
             # gmsh.option.set_number("View.OffsetX", 400)
             # gmsh.option.set_number("View.OffsetY", 15)
 
-            gmsh.write(f"./Animations/vortex_{t // ratio:04d}.jpg")
+            gmsh.write(f"./Animations/image_{t // ratio:04d}.jpg")
 
     else:
         for t in range(0, m + 1, 5):
@@ -375,18 +374,9 @@ def my_velocity_condition(x):
     return x * 0. + 1.
 
 
-def velocity_special(x):
-    x, y = x[:, 0], x[:, 1]
-    u = -10. * x ** 2 * y * (1 - x) ** 2 * (1 - y)
-    v = +10. * x * y ** 2 * (1 - x) * (1 - y) ** 2
-    return np.c_[u, v]
-    # return np.c_[y, -x]
-    # return np.c_[np.exp(x+y), -np.exp(x+y)]
-
-
 def initial_Zalezak(x):
     """
-    Ugly function, but handles correctly the distances in the corners
+    Ugly function, but handles correctly the distances near the corners
     """
     xc, yc, r, h, w = 50., 75, 15., 25., 5.
     y_top, y_bot = yc - r + h, yc - sqrt(r ** 2 - (0.5 * w) ** 2)
@@ -422,7 +412,7 @@ def initial_Zalezak(x):
         alpha = 3
         phi_zero[i] = 0.5 * (1. - np.tanh(alpha * d))
 
-        # # makes no sense
+        # # makes no sense since exp(.) > 0
         # if (np.exp(d) - 1 < -1):
         #     phi_zero[i] = -1
         # elif (np.exp(d) - 1 > 1):
@@ -457,18 +447,34 @@ def velocity_Vortex(x):
     return np.c_[u, v]
 
 
+def initial_special(x):
+    xc, yc = x[:, 0] - 0.2, x[:, 1] - 0.5
+    l2 = xc ** 2 / 0.01 + yc ** 2 / 0.1
+    return np.exp(-l2)
+
+
+def velocity_special(x):
+    x, y = x[:, 0], x[:, 1]
+
+    # u = +0.1 * (pi * cos(pi * y) - pi ** 2 * y * sin(2 * pi * y))
+    u = -0.1 * (pi * cos(pi * y) - pi ** 2 * y * sin(pi * y))
+    v = +0.1 * (pi * sin(pi * x) + pi ** 2 * x * cos(pi * x))
+    return np.c_[u, v]
+
+
 if __name__ == "__main__":
-    # TODO: (1) vectorize "local_dot" a bit more because currently too slow
-    # TODO: (2) adapt for vector fields with divergence
 
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, \
         nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
-    # advection2d("./mesh/square.msh", 0.003, 500, my_initial_condition, my_velocity_condition, interactive=True,
-    #             order=3, a=1., display=False, animation=False, save=False)
+    advection2d("./mesh/square.msh", 0.002, 300, my_initial_condition, my_velocity_condition, interactive=True,
+                order=3, a=1., display=False, animation=False, save=False)
+
+    # advection2d("./mesh/square_best.msh", 0.0025, 1000, initial_special, velocity_special, interactive=True,
+    #             order=3, a=1., display=False, animation=False, save=True)
 
     # advection2d("./mesh/square.msh", 0.004, 200, initial_Vortex, velocity_Vortex, interactive=True,
     #             order=3, a=1., display=False, animation=False, save=False)
 
-    advection2d("./mesh/circle_h6.msh", 1.0, 628, initial_Zalezak, velocity_Zalezak, interactive=True,
-                order=3, a=1., display=False, animation=False, save=False)
+    # advection2d("./mesh/circle_h6.msh", 1.0, 628, initial_Zalezak, velocity_Zalezak, interactive=True,
+    #             order=3, a=1., display=False, animation=False, save=False)

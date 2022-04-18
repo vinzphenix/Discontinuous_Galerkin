@@ -95,7 +95,7 @@ def create_rectangle(filename, elemSizeRatio):
     gmsh.finalize()
 
 
-create_square("square_low.msh", elemSizeRatio=1./10.)
+create_square("square_best.msh", elemSizeRatio=1./50.)
 # create_circle("circle_h8.msh", elemSizeRatio=8./100.)
 # create_hole("hole.msh", elemSizeRatio=1./20.)
 # create_rectangle("rectangle.msh", elemSizeRatio=1./20.)

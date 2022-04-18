@@ -243,8 +243,8 @@ def rk44(phi, dt, m, a, Nt, Np):
     return phi
 
 
-def advection2d(meshfilename, dt, m, f, u, order=3, rktype="RK44", a=1., interactive=False,
-                save=False, plotReturn=False, display=False, animation=False):
+def advection2d(meshfilename, dt, m, f, u, rktype="RK44", interactive=False,
+                order=3, a=1., save=False, plotReturn=False, display=False, animation=False):
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
     gmsh.initialize()
@@ -471,7 +471,7 @@ if __name__ == "__main__":
                 order=3, a=1., display=False, animation=False, save=False)
 
     # advection2d("./mesh/square_best.msh", 0.0025, 1000, initial_special, velocity_special, interactive=True,
-    #             order=3, a=1., display=False, animation=False, save=True)
+    #             order=3, a=1., display=False, animation=False, save=False)
 
     # advection2d("./mesh/square.msh", 0.004, 200, initial_Vortex, velocity_Vortex, interactive=True,
     #             order=3, a=1., display=False, animation=False, save=False)

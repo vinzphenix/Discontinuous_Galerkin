@@ -155,7 +155,6 @@ def get_edge_flux_matrix(Nt, Np):
             indices[1][0].append(lOut), indices[1][1].append(elemOut), indices[1][2].append(nodeOut)
 
 
-    # Velocity is in fact 0 on boundary
     for edgeTag, dic in edgesBdInfo.items():
         elemIn, = dic["elem"]
         l, = dic["number"]
@@ -176,21 +175,24 @@ def local_dot(phi, a, Nt, Np, t=0.):
     # T = 8.
     # velocity_local = velocity * cos(pi * t / T)
 
-    Fx = np.zeros((3, Nt, Np))
-    Fy = np.zeros((3, Nt, Np))
-    for i in range(Nt):
-        for j in range(Np):
-            Fx[:,i,j] = A1 @ phi[:,i,j]
-            Fy[:,i,j] = A2 @ phi[:,i,j]
+    # Fx = np.zeros((3, Nt, Np))
+    # Fy = np.zeros((3, Nt, Np))
+    # for i in range(Nt):
+    #     for j in range(Np):
+    #         Fx[:,i,j] = A1 @ phi[:,i,j]
+    #         Fy[:,i,j] = A2 @ phi[:,i,j]
+    Fx = np.einsum("di, itp -> dtp", A1, phi)
+    Fy = np.einsum("di, itp -> dtp", A2, phi)
 
     Flux_ksi = np.zeros((3, Nt, Np))
     Flux_eta = np.zeros((3, Nt, Np))
-    for k in range(3):
-        Flux_ksi[k] = Fx[k] * IJ[:, 0, 0, np.newaxis] + Fy[k] * IJ[:, 0, 1, np.newaxis]
-        Flux_eta[k] = Fx[k] * IJ[:, 1, 0, np.newaxis] + Fy[k] * IJ[:, 1, 1, np.newaxis]
+    for d in range(3):
+        Flux_ksi[d] = Fx[d] * IJ[:, 0, 0, np.newaxis] + Fy[d] * IJ[:, 0, 1, np.newaxis]
+        Flux_eta[d] = Fx[d] * IJ[:, 1, 0, np.newaxis] + Fy[d] * IJ[:, 1, 1, np.newaxis]
 
-    Flux_edge = np.zeros((3, Nt, Np, 3))
+    #Flux_edge = np.zeros((3, Nt, Np, 3))
 
+    # TODO 
     """  # slower, but can modulate "a" and can handle vector fields changing in time
     for edgeTag, dic in edgesInInfo.items():  # loop over all the edges inside the domain
         elemIn, elemOut = dic["elem"]
@@ -216,19 +218,20 @@ def local_dot(phi, a, Nt, Np, t=0.):
             Flux_edge[l][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * dic["length"]
     """
 
-    for l in range(3):
-        for i in range(Nt):
-            for j in range(Np):
-                Flux_edge[l, i, j, :] = Flux_edge_temp[l, i, j] @ phi[:, i, j]
+    # for e in range(3):
+    #     for t in range(Nt):
+    #         for p in range(Np):
+    #             Flux_edge[e, t, p, :] = Flux_edge_temp[e, t, p] @ phi[:, t, p]
+    Flux_edge = np.einsum("etpdi, itp -> etpd", Flux_edge_temp, phi)
     Flux_edge[idx[0]] += Flux_edge[idx[1]]
     Flux_edge[idx[1]] = -Flux_edge[idx[0]]
     
     # """
 
-    sum_edge_fluxes = np.array([sum(np.dot(Flux_edge[l, :, :, k], ME[l]) for l in range(3)) for k in range(3)])
-    sum_all_fluxes = np.array([np.dot(Flux_ksi[k], D[0].T) + np.dot(Flux_eta[k], D[1].T) - sum_edge_fluxes[k] for k in range(3)])
+    sum_edge_fluxes = np.array([sum(np.dot(Flux_edge[e, :, :, d], ME[e]) for e in range(3)) for d in range(3)])
+    sum_all_fluxes = np.array([np.dot(Flux_ksi[d], D[0].T) + np.dot(Flux_eta[d], D[1].T) - sum_edge_fluxes[d] for d in range(3)])
 
-    return np.array([np.dot(sum_all_fluxes[k] / det[:, np.newaxis], M_inv) for k in range(3)])
+    return np.array([np.dot(sum_all_fluxes[d] / det[:, np.newaxis], M_inv) for d in range(3)])
 
 
 def fwd_euler(phi, dt, m, a, Nt, Np):
@@ -389,16 +392,18 @@ def my_initial_condition(x):
     return np.exp(-l2 * 10.)
 
 
-def my_velocity_condition(x):
-    return x * 0. + 1.
-
 
 if __name__ == "__main__":
 
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, \
         nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
-    euler2d("./mesh/square_low.msh", 0.00002, 100, 200, 0, my_initial_condition, interactive=False,
+    #dt = 2*h/340
+
+    # euler2d("./mesh/square_best.msh", 0.08*2/50/540, 100, 0, 0, my_initial_condition, interactive=False,
+    #             order=3, a=1., display=True, animation=False, save=False)
+
+    euler2d("./mesh/square_low.msh", 0.00002, 100, 0, 0, my_initial_condition, interactive=False,
                 order=3, a=1., display=True, animation=False, save=False)
 
 

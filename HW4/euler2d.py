@@ -176,18 +176,18 @@ def local_dot(phi, a, Nt, Np, t=0.):
     # T = 8.
     # velocity_local = velocity * cos(pi * t / T)
 
-    Fx = np.zeros((Nt, Np, 3))
-    Fy = np.zeros((Nt, Np, 3))
+    Fx = np.zeros((3, Nt, Np))
+    Fy = np.zeros((3, Nt, Np))
     for i in range(Nt):
         for j in range(Np):
-            Fx[i,j,:] = A1 @ phi[i,j,:]
-            Fy[i,j,:] = A2 @ phi[i,j,:]
+            Fx[:,i,j] = A1 @ phi[:,i,j]
+            Fy[:,i,j] = A2 @ phi[:,i,j]
 
-    Flux_ksi = np.zeros((Nt, Np, 3))
-    Flux_eta = np.zeros((Nt, Np, 3))
+    Flux_ksi = np.zeros((3, Nt, Np))
+    Flux_eta = np.zeros((3, Nt, Np))
     for k in range(3):
-        Flux_ksi[:,:,k] = Fx[:,:,k] * IJ[:, 0, 0, np.newaxis] + Fy[:,:,k] * IJ[:, 0, 1, np.newaxis]
-        Flux_eta[:,:,k] = Fx[:,:,k] * IJ[:, 1, 0, np.newaxis] + Fy[:,:,k] * IJ[:, 1, 1, np.newaxis]
+        Flux_ksi[k] = Fx[k] * IJ[:, 0, 0, np.newaxis] + Fy[k] * IJ[:, 0, 1, np.newaxis]
+        Flux_eta[k] = Fx[k] * IJ[:, 1, 0, np.newaxis] + Fy[k] * IJ[:, 1, 1, np.newaxis]
 
     Flux_edge = np.zeros((3, Nt, Np, 3))
 
@@ -216,23 +216,19 @@ def local_dot(phi, a, Nt, Np, t=0.):
             Flux_edge[l][elemIn][nodeIn] = (avg + a * dif) * normal_velocity * dic["length"]
     """
 
-    for k in range(3):
+    for l in range(3):
         for i in range(Nt):
             for j in range(Np):
-                Flux_edge[k, i, j, :] = Flux_edge_temp[k, i, j] @ phi[i,j,:]
+                Flux_edge[l, i, j, :] = Flux_edge_temp[l, i, j] @ phi[:, i, j]
     Flux_edge[idx[0]] += Flux_edge[idx[1]]
     Flux_edge[idx[1]] = -Flux_edge[idx[0]]
     
     # """
 
-    sum_edge_fluxes = np.array([sum(np.dot(Flux_edge[i, :, :, j], ME[i]) for i in range(3)) for j in range(3)])
-    sum_all_fluxes = np.array([np.dot(Flux_ksi[:,:,j], D[0].T) + np.dot(Flux_eta[:,:,j], D[1].T) - sum_edge_fluxes[j] for j in range(3)])
+    sum_edge_fluxes = np.array([sum(np.dot(Flux_edge[l, :, :, k], ME[l]) for l in range(3)) for k in range(3)])
+    sum_all_fluxes = np.array([np.dot(Flux_ksi[k], D[0].T) + np.dot(Flux_eta[k], D[1].T) - sum_edge_fluxes[k] for k in range(3)])
 
-    temp = np.array([np.dot(sum_all_fluxes[j] / det[:, np.newaxis], M_inv) for j in range(3)])
-    temp = np.swapaxes(temp, 0, 1)
-    temp = np.swapaxes(temp, 1, 2)
-
-    return temp
+    return np.array([np.dot(sum_all_fluxes[k] / det[:, np.newaxis], M_inv) for k in range(3)])
 
 
 def fwd_euler(phi, dt, m, a, Nt, Np):
@@ -283,9 +279,9 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, rktype="RK44", interactive=Fals
     coordinates_matrix, edgesInInfo, edgesBdInfo, nodesIndices_fwd, nodesIndices_bwd = get_edges_mapping(order, Nt, Np)
 
 
-    phi = np.zeros((m + 1, Nt * Np, 3))
-    phi[0,:,-1] = p_init(coordinates_matrix)
-    phi = phi.reshape((m + 1, Nt, Np, 3))
+    phi = np.zeros((m + 1, 3, Nt * Np))
+    phi[0,-1] = p_init(coordinates_matrix)
+    phi = phi.reshape((m + 1, 3, Nt, Np))
 
     Flux_edge_temp, idx = get_edge_flux_matrix(Nt, Np)
 
@@ -300,11 +296,11 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, rktype="RK44", interactive=Fals
         raise ValueError
 
     if display:
-        static_plots(coordinates_matrix, phi[:,:,:,-1], m)
+        static_plots(coordinates_matrix, phi[:,-1], m)
     if animation:
-        anim_plots(coordinates_matrix, phi[:,:,:,-1], m)
+        anim_plots(coordinates_matrix, phi[:,-1], m)
     if interactive:
-        anim_gmsh(elementType, phi[:,:,:,-1], m, dt, save)
+        anim_gmsh(elementType, phi[:,-1], m, dt, save)
 
     gmsh.finalize()
 

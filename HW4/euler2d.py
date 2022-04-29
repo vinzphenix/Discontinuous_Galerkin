@@ -192,7 +192,7 @@ def local_dot(phi, a, Nt, Np, t=0.):
 
     #Flux_edge = np.zeros((3, Nt, Np, 3))
 
-    # TODO 
+    # TODO
     """  # slower, but can modulate "a" and can handle vector fields changing in time
     for edgeTag, dic in edgesInInfo.items():  # loop over all the edges inside the domain
         elemIn, elemOut = dic["elem"]
@@ -262,16 +262,15 @@ def rk44(phi, dt, m, a, Nt, Np):
     return phi
 
 
-def euler2d(meshfilename, dt, m, u0, v0, p_init, rktype="RK44", interactive=False,
+def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340, rktype="RK44", interactive=False,
                 order=3, a=1., save=False, plotReturn=False, display=False, animation=False):
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
-    global A1, A2, c0, rho
+    global A1, A2, rho
 
     gmsh.initialize()
     gmsh.open(meshfilename)
     gmsh.model.mesh.setOrder(order)  # this is an option
 
-    c0 = 340
     rho = 1
     A1 = np.array([[u0, 0, 1], [0, u0, 0], [c0**2, 0, u0]])
     A2 = np.array([[v0, 0, 0], [0, v0, 1], [0, c0**2, v0]])

@@ -10,9 +10,9 @@ plt.rcParams['font.family'] = 'monospace'
 
 
 
-def solution_comparison(meshfilename, dt, m):
+def solution_comparison(meshfilename, dt, m, u0, v0):
 
-    phi, coords = euler2d(meshfilename, dt, m, 0, 0, my_initial_condition, c0=1, plotReturn=True)
+    phi, coords = euler2d(meshfilename, dt, m, u0, v0, my_initial_condition, c0=1, plotReturn=True)
     _, _, Nt, Np = phi.shape
     phi_analytical = np.zeros((9, Nt * Np))
     integrand = lambda ksi, eta, t: 0.05 * np.exp(-ksi ** 2 / 40) * np.cos(ksi * t) * jv(0, ksi * eta) * ksi
@@ -31,7 +31,7 @@ def solution_comparison(meshfilename, dt, m):
     for i in range(4):
         t = (i * m) // 4 * dt
         for k in range(Nt * Np):
-            phi_analytical[i, k] = quad(integrand, 0, 10, args=(np.sqrt((coords[k, 0]-0.5)**2 + (coords[k, 1]-0.5)**2), t))[0]
+            phi_analytical[i, k] = quad(integrand, 0, 10, args=(np.sqrt((coords[k, 0]-0.5-u0*t)**2 + (coords[k, 1]-0.5-v0*t)**2), t))[0]
 
         axs_ana[i].tripcolor(coords[:, 0], coords[:, 1], phi_analytical[i], cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
         axs_ana[i].triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5)
@@ -62,6 +62,6 @@ if __name__ == "__main__":
     plt.rcParams["text.usetex"] = save_global
 
     # test()
-    solution_comparison("./mesh/square_low.msh", 0.002, 300)
+    solution_comparison("./mesh/square_low.msh", 0.002, 300, 1, 0)
 
 

@@ -161,11 +161,17 @@ def get_edge_flux_matrix(Nt, Np):
 
         for nodeIn in nodesIndices_fwd[l]:
             An = A1 * dic["normal"][0] + A2 * dic["normal"][1]
-            lambdas, L = np.linalg.eig(An)
-            lambdas = np.diag(lambdas)
-            L_inv = np.linalg.inv(L)
 
-            flux_edge_temp[l][elemIn][nodeIn] = L @ np.maximum(zeros, lambdas) @ L_inv * dic["length"]
+            "Non reflective BC"
+            # lambdas, L = np.linalg.eig(An)
+            # lambdas = np.diag(lambdas)
+            # L_inv = np.linalg.inv(L)
+            # flux_edge_temp[l][elemIn][nodeIn] = L @ np.maximum(zeros, lambdas) @ L_inv * dic["length"]
+
+            "Slip-walls"
+            n = np.array([dic["normal"][0], dic["normal"][1], 0]) * np.array([[1],[1],[0]])
+            n_diag = np.diag([dic["normal"][0], dic["normal"][1], 0])
+            flux_edge_temp[l][elemIn][nodeIn] = (An - An @ n_diag @ n) * dic["length"]
 
     indices[0], indices[1] = tuple(indices[0]), tuple(indices[1])
     return flux_edge_temp, indices

@@ -10,3 +10,4 @@
 ![Example 3 gif](HW3/Animations/example_3.gif)
 
 ## Homework 4 - Linearized Euler Equations (2D)
+![Example 4 gif](HW4/Animations/example_4.gif)

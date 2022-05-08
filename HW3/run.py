@@ -61,12 +61,12 @@ def plot_L1errors(hs, getFromTXT, save):
                 L1[i, order - 1] = l1
                 gmsh.finalize()
 
-        np.savetxt("./Figures/L1.txt", L1, fmt="%.5f")
-        np.savetxt("./Figures/Area.txt", Areas, fmt="%.5f")
+        np.savetxt("./figures/L1.txt", L1, fmt="%.5f")
+        np.savetxt("./figures/Area.txt", Areas, fmt="%.5f")
 
     else:
-        L1 = np.loadtxt('./Figures/L1.txt')
-        Areas = np.loadtxt('./Figures/Area.txt')
+        L1 = np.loadtxt('./figures/L1.txt')
+        Areas = np.loadtxt('./figures/Area.txt')
 
     fig, ax = plt.subplots(1, 1, figsize=(10., 6.), constrained_layout=True)
 
@@ -82,7 +82,7 @@ def plot_L1errors(hs, getFromTXT, save):
     ax.set_yscale("log")
 
     if save:
-        fig.savefig("./Figures/L1_errors.svg", format="svg", bbox_inches='tight')
+        fig.savefig("./figures/L1_errors.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -120,7 +120,7 @@ def iso_zero_contour(filename, tend, n_times, orders, dt_list, init, velocity, l
         ax.set_ylabel(r"$p = {:d}$".format(order), fontsize=ftSz2)
 
     if save:
-        fig.savefig(f"./Figures/{filename}.svg", format="svg", bbox_inches='tight')
+        fig.savefig(f"./figures/{filename}.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -158,7 +158,7 @@ def iso_contour_zalezak(names, tend, n_times, orders, dt_list, level, save=False
             ax.set_title(r"$p = {:d}$".format(order), fontsize=ftSz2)
 
     if save:
-        fig.savefig(f"./Figures/zalezak_overview.svg", format="svg", bbox_inches='tight')
+        fig.savefig(f"./figures/zalezak_overview.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -205,7 +205,7 @@ def iso_contour_zalezak_zoomed(order, dt, meshfilename, save=False):
     ax.indicate_inset_zoom(axin2, edgecolor="black")
 
     if save:
-        fig.savefig(f"./Figures/zalezak_zoomed.svg", format="svg", bbox_inches='tight')
+        fig.savefig(f"./figures/zalezak_zoomed.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 

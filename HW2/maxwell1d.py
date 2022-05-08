@@ -2,11 +2,9 @@ import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
 from scipy.special import legendre, roots_legendre
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
+from tqdm import tqdm
 
-ftSz1, ftSz2, ftSz3 = 20, 15, 12
-plt.rcParams["text.usetex"] = False
-plt.rcParams['font.family'] = 'monospace'
 
 table = [
     [1.0000, 1.0000, 1.2564, 1.3926, 1.6085],
@@ -150,7 +148,7 @@ def compute_coefficients(f0_list, L, n, p):
     return u
 
 
-def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False):
+def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False, save=False):
 
     build_matrix(n, p, eps, mu, L)
     Q = np.array([eps, mu])
@@ -173,30 +171,36 @@ def maxwell1d(L, E0, H0, n, eps, mu, dt, m, p, rktype, bctype, a=1., anim=False)
     u = np.swapaxes(u, 0, 2)
     u = np.swapaxes(u, 0, 1)
     if anim:
-        plot_function(u, L=L, n=n, eps=eps, mu=mu, dt=dt, m=m, p=p, f0_list=[E0, H0])
+        plot_function(u, L=L, n=n, eps=eps, mu=mu, dt=dt, m=m, p=p, f0_list=[E0, H0], save=save, bctype=bctype)
 
     return u
 
 
-def plot_function(u, L, n, eps, mu, dt, m, p, f0_list):
+def plot_function(u, L, n, eps, mu, dt, m, p, f0_list, save=False, bctype="Reflective"):
     def init():
-        exact_E.set_data(full_x, E0(full_x, L))
-        exact_H.set_data(full_x, H0(full_x, L))
+        animated_items = []
+        if alpha > 0.:
+            exact_E.set_data(full_x_no_dim, E0(full_x, L))
+            exact_H.set_data(full_x_no_dim, H0(full_x, L))
+            animated_items += [exact_E, exact_H]
         time_text.set_text(time_template.format(0))
         for k, line in enumerate(lines_E):
-            line.set_data(np.linspace(k * dx - L, (k + 1) * dx - L, n_plot + 1), E[k, 0])
+            line.set_data(np.linspace(k * dx - L, (k + 1) * dx - L, n_plot + 1) / c_, E[k, 0])
         for k, line in enumerate(lines_H):
-            line.set_data(np.linspace(k * dx - L, (k + 1) * dx - L, n_plot + 1), H[k, 0])
-
-        return tuple([*lines_H, *lines_E, exact_H, exact_E, time_text])
+            line.set_data(np.linspace(k * dx - L, (k + 1) * dx - L, n_plot + 1) / c_, H[k, 0])
+        return animated_items + [*lines_H, *lines_E, time_text]
 
     def animate(t_idx):
+        t_idx *= ratio
         t = t_idx * dt
+        animated_items = []
         # mu0, eps0 should be functions of x to simulate different media
-        v_1 = 0.5 / full_sqrt_mu * E0(full_x - c * t, L) + 0.5 / full_sqrt_eps * H0(full_x - c * t, L)
-        v_2 = 0.5 / full_sqrt_mu * E0(full_x + c * t, L) - 0.5 / full_sqrt_eps * H0(full_x + c * t, L)
-        exact_E.set_ydata(full_sqrt_mu * (v_1 + v_2))
-        exact_H.set_ydata(full_sqrt_eps * (v_1 - v_2))
+        if alpha > 0.:
+            v_1 = 0.5 / full_sqrt_mu * E0(full_x - c * t, L) + 0.5 / full_sqrt_eps * H0(full_x - c * t, L)
+            v_2 = 0.5 / full_sqrt_mu * E0(full_x + c * t, L) - 0.5 / full_sqrt_eps * H0(full_x + c * t, L)
+            exact_E.set_ydata(full_sqrt_mu * (v_1 + v_2))
+            exact_H.set_ydata(full_sqrt_eps * (v_1 - v_2))
+            animated_items.append += [exact_E, exact_H]
 
         time_text.set_text(time_template.format(t))
         for k, line in enumerate(lines_H):
@@ -204,7 +208,8 @@ def plot_function(u, L, n, eps, mu, dt, m, p, f0_list):
         for k, line in enumerate(lines_E):
             line.set_ydata(E[k, t_idx])
 
-        return tuple([*lines_H, *lines_E, exact_H, exact_E, time_text])
+        pbar.update(1)
+        return animated_items + [*lines_H, *lines_E, time_text]
 
     E0, H0 = f0_list
 
@@ -219,7 +224,10 @@ def plot_function(u, L, n, eps, mu, dt, m, p, f0_list):
     full_sqrt_mu = np.sqrt(np.r_[mu[0], np.repeat(mu, n_plot)])
     c = 1. / (np.sqrt(eps0) * np.sqrt(mu0))
 
-    alpha = 0.5 if (np.all(np.isclose(eps, eps[0], atol=1e-2 * eps0))) and (
+    L_no_dim = L / c_
+    full_x_no_dim = full_x / c_
+
+    alpha = 0.5 if (bctype == "non-reflective") and (np.all(np.isclose(eps, eps[0], atol=1e-2 * eps0))) and (
         np.all(np.isclose(mu, mu[0], atol=1e-2 * mu0))) else 0.
 
     for time in range(m + 1):
@@ -227,48 +235,71 @@ def plot_function(u, L, n, eps, mu, dt, m, p, f0_list):
             E[elem, time] = np.dot(psi, u[0, :, elem, time])
             H[elem, time] = np.dot(psi, u[1, :, elem, time])
 
-    fig, axs = plt.subplots(2, 1, figsize=(10, 6), constrained_layout=True, sharex='all')
+    fig, axs = plt.subplots(2, 1, figsize=(8., 5.), sharex='all')
+    fig.tight_layout()
 
-    time_template = r'$t = {:.3f} [s]$'
-    time_text = axs[0].text(0.83, 0.90, '', fontsize=17, transform=axs[0].transAxes)
-    lines_E = [axs[0].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
+    time_template = r'$t = \mathtt{{{:.2f}}} \; [s]$'
+    time_text = axs[0].text(0.815, 0.85, '', fontsize=ftSz1, transform=axs[0].transAxes)
+    lines_E = [axs[0].plot([], [], color='C1', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
     lines_H = [axs[1].plot([], [], color='C0', marker='.', markevery=[0, -1])[0] for _ in range(2 * n)]
-    exact_E, = axs[0].plot(full_x, E0(full_x, L * np.ones_like(full_x)), color='C1', alpha=alpha, lw=5, zorder=0)
-    exact_H, = axs[1].plot(full_x, H0(full_x, L * np.ones_like(full_x)), color='C1', alpha=alpha, lw=5, zorder=0)
+    if alpha > 0.:
+        exact_E, = axs[0].plot(full_x_no_dim, E0(full_x, L * np.ones_like(full_x)), color='C1', alpha=alpha, lw=5, zorder=0)
+        exact_H, = axs[1].plot(full_x_no_dim, H0(full_x, L * np.ones_like(full_x)), color='C0', alpha=alpha, lw=5, zorder=0)
 
     if (eps[0] != eps[n]) or (mu[0] != mu[n]):
-        axs[0].add_patch(plt.Rectangle((-L / 2., -2. * coef[1, 1]), L, 4. * coef[1, 1], facecolor="grey", alpha=0.35))
-        axs[1].add_patch(plt.Rectangle((-L / 2., -2.), L, 4., facecolor="grey", alpha=0.35))
+        axs[0].add_patch(plt.Rectangle((-L_no_dim / 2., -2. * coef[1, 1]),
+                                       L_no_dim, 4. * coef[1, 1], facecolor="grey", alpha=0.35))
+        axs[1].add_patch(plt.Rectangle((-L_no_dim / 2., -2.), L_no_dim, 4., facecolor="grey", alpha=0.35))
 
     scale = 1.15
-    axs[0].set_xlim(-L, L)
+    axs[0].set_xlim(-L_no_dim, L_no_dim)
     axs[0].set_ylim(-scale * coef[1, 1], scale * coef[1, 1])
     axs[1].set_ylim(-scale, scale)
 
     axs[0].set_ylabel(r"$E(x,t)$ [V/m]", fontsize=ftSz2)
     axs[1].set_ylabel(r"$H(x,t)$ [A/m]", fontsize=ftSz2)
-    axs[1].set_xlabel(r"L [m]", fontsize=ftSz2)
+    axs[1].set_xlabel(r"$L$ [light-second]", fontsize=ftSz2)
     axs[0].grid(ls=':')
     axs[1].grid(ls=':')
+    fig.subplots_adjust(left=0.095, right=0.995, bottom=0.11, top=0.995)
 
     # to animate
-    _ = FuncAnimation(fig, animate, m + 1, interval=1e3*dt, blit=True, init_func=init, repeat_delay=3000)
+    fps = 30
+    t_anim = 6.
+    ratio = max(m // int(fps * t_anim), 1)
+    # ratio = 1
+    nFrames = m//ratio + 1
 
-    # to get only one frame at t = i
-    # i = 0 ; init() ; animate(i)
+    init()
+    anim = FuncAnimation(fig, animate, nFrames, interval=50, blit=False, init_func=lambda: None, repeat_delay=3000)
+    pbar = tqdm(total=nFrames)
 
-    plt.show()
+    if save:
+        writerMP4 = FFMpegWriter(fps=fps)
+        anim.save(f"./Figures/anim.mp4", writer=writerMP4)
+    else:
+        # to get only one frame at t = i
+        # i = 0 ; init() ; animate(i)
+        plt.show()
 
+    pbar.close()
+    return
+
+
+ftSz1, ftSz2, ftSz3 = 20, 17, 14
+plt.rcParams["text.usetex"] = True
+plt.rcParams['font.family'] = 'serif'
 
 if __name__ == "__main__":
     eps0, mu0 = 8.8541878128e-12, 4.e-7 * np.pi
 
-    L_, n_, p_ = 3e8 / 2., 10, 3
-    c_, m_ = 1. / (np.sqrt(eps0) * np.sqrt(mu0)), 1000
+    L_, n_, p_ = 3e8 / 2., 15, 3
+    c_ = 1. / (np.sqrt(eps0) * np.sqrt(mu0))
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
+    m_ = int(np.ceil(1. / dt_))
 
     eps_, mu_ = eps0 * np.ones(2 * n_), mu0 * np.ones(2 * n_)
-    # eps_[n_ // 2:3 * n_ // 2] *= 5  # permittivity of glass differs, but the rest stays the same
+    # eps_[n_ // 2:3 * n_ // 2] *= 20  # permittivity of glass differs, but the rest stays the same
     # mu_[n_ // 2:3 * n_ // 2] *= 5  # hypothetical material
 
     E1 = lambda x, L: 0 * x
@@ -280,5 +311,5 @@ if __name__ == "__main__":
     H5 = lambda x, L: np.sin(2 * np.pi * 5 * x / L) * np.where(np.abs(x - L / 2.) <= L / 10., 1., 0.)  # non symmetric
 
     # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='periodic', a=1., anim=True)
-    res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True)
-    # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True)
+    res = maxwell1d(L_, E1, H4, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='reflective', a=1., anim=True, save=False)
+    # res = maxwell1d(L_, E1, H1, n_, eps_, mu_, dt_, m_, p_, 'RK44', bctype='non-reflective', a=1., anim=True, save=False)

@@ -68,7 +68,7 @@ def plot_energy(T_end=2.5, save=False):
         ax.legend(fontsize=ftSz3)
 
     if save:
-        fig.savefig("./Figures/energy_evolution_10_new.svg", format="svg", bbox_inches='tight')
+        fig.savefig("./figures/energy_evolution_10_new.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -96,7 +96,7 @@ def plot_stable_time_step(save=False):
     ax.set_ylabel(r"$\Delta t \;\; [s]$", fontsize=ftSz2)
 
     if save:
-        fig.savefig("./Figures/stable_time_step.svg", format="svg", bbox_inches='tight')
+        fig.savefig("./figures/stable_time_step.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 
@@ -136,7 +136,7 @@ def plot_behavior(L, n, p, c, a_tpl, f, name="", save=False):
         ax.yaxis.set_label_position("right")
 
     if save:
-        fig.savefig(f"./Figures/{name}.svg", format="svg", bbox_inches='tight')
+        fig.savefig(f"./figures/{name}.svg", format="svg", bbox_inches='tight')
     else:
         plt.show()
 

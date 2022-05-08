@@ -3,7 +3,8 @@ import scipy.sparse as sp
 import matplotlib.pyplot as plt
 from scipy.special import legendre
 from scipy.signal import square
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
+from tqdm import tqdm
 
 table = [
     [1.0000, 1.0000, 1.2564, 1.3926, 1.6085],
@@ -102,7 +103,7 @@ def compute_coefficients(f, L, n, p):
     return u.reshape(n * (p + 1))
 
 
-def advection1d(L, n, dt, m, p, c, f, a, rktype, anim=False):
+def advection1d(L, n, dt, m, p, c, f, a, rktype, anim=False, save=False, tend=0.):
     inv_mass_matrix = sp.diags([np.tile(np.linspace(1, 2 * p + 1, p + 1), n)], [0], format='bsr')
     stiff_matrix = build_matrix(n, p, a)
     Q = -c * n / L * inv_mass_matrix.dot(stiff_matrix)
@@ -123,12 +124,12 @@ def advection1d(L, n, dt, m, p, c, f, a, rktype, anim=False):
     u = u.T.reshape((n, p + 1, m + 1))
     u = np.swapaxes(u, 0, 1)
     if anim:
-        plot_function(u, L=L, n=n, dt=dt, m=m, p=p, c=c, f=f)
+        plot_function(u, L=L, n=n, dt=dt, m=m, p=p, c=c, f=f, save=save, tend=tend)
 
     return u
 
 
-def plot_function(u, L, n, dt, m, p, c, f):
+def plot_function(u, L, n, dt, m, p, c, f, save=False, tend=0.):
     def init():
         exact.set_data(full_x, f(full_x, L))
         time_text.set_text(time_template.format(0))
@@ -138,11 +139,12 @@ def plot_function(u, L, n, dt, m, p, c, f):
         return tuple([*lines, exact, time_text])
 
     def animate(t):
+        t *= ratio
         exact.set_ydata(f(full_x - c * dt * t, L))
         time_text.set_text(time_template.format(dt * t))
         for k, line in enumerate(lines):
             line.set_ydata(v[k, t])
-
+        pbar.update(1)
         return tuple([*lines, exact, time_text])
 
     n_plot = 100
@@ -156,32 +158,54 @@ def plot_function(u, L, n, dt, m, p, c, f):
         for elem in range(n):
             v[elem, time] = np.dot(psi, u[:, elem, time])
 
-    fig, ax = plt.subplots(1, 1, figsize=(10, 6), constrained_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(8., 4.5))
+    fig.tight_layout()
     ax.grid(ls=':')
 
-    time_template = r'$t = {:.2f} [s]$'
-    time_text = ax.text(0.85, 0.92, '', fontsize=17, transform=ax.transAxes)
+    time_template = r'$t = \mathtt{{{:.2f}}} \;[s]$'
+    time_text = ax.text(0.815, 0.92, '', fontsize=ftSz1, transform=ax.transAxes)
 
     lines = [ax.plot([], [], color='C0')[0] for _ in range(n)]
     exact, = ax.plot(full_x, f(full_x, L), color='C1', alpha=0.5, lw=5, zorder=0)
     ax.set_ylim(1.25 * np.array(ax.get_ylim()))
+    ax.set_xlabel(r"$x$", fontsize=ftSz2)
+    ax.set_ylabel(r"$u$", fontsize=ftSz2)
+    fig.subplots_adjust(left=0.08, right=0.995, bottom=0.11, top=0.995)
 
     # to animate
-    _ = FuncAnimation(fig, animate, m + 1, interval=dt, blit=True, init_func=init, repeat=False, repeat_delay=3000)
+    fps = m / tend
+    # ratio = max(m // int(fps * tend), 1)
+    ratio = 1
+    pbar = tqdm(total=m // ratio + 1)
+    init()
+    anim = FuncAnimation(fig, animate, m // ratio + 1, interval=50, blit=False,
+                         init_func=lambda: None, repeat=False, repeat_delay=3000)
 
-    # to get only one frame at t = i
-    # i = m ; init() ; animate(i)
+    if save:
+        writerMP4 = FFMpegWriter(fps=fps)
+        anim.save(f"./Figures/anim.mp4", writer=writerMP4)
+    else:
+        # to get only one frame at t = i
+        # i = m ; init() ; animate(i)
+        plt.show()
 
-    plt.show()
+    pbar.close()
+    return
+
+
+ftSz1, ftSz2, ftSz3 = 20, 17, 14
+plt.rcParams["text.usetex"] = True
+plt.rcParams['font.family'] = 'serif'
 
 
 if __name__ == "__main__":
 
-    L_, n_, p_ = 1., 32, 3
-    c_ = 1.
+    L_, n_, p_ = 1., 4, 3
+    c_ = 0.4
     dt_ = 0.5 * table[p_][3] / c_ * L_ / n_
     # dt_ = 0.002
-    m_ = int(1. / dt_)
+    T_end = 5.
+    m_ = int(T_end / dt_)
 
     f1 = lambda x, L: np.sin(2 * 3 * np.pi * x / L)
     f2 = lambda x, L: np.cos(2 * np.pi * x / L) + 0.4 * np.cos(4 * np.pi * x / L) + 0.1 * np.sin(6 * np.pi * x / L)
@@ -189,4 +213,4 @@ if __name__ == "__main__":
     f4 = lambda x, L: np.heaviside(np.fmod(np.fmod(x / L, 1.) + 1, 1.) - 0.5, 0.)
     f5 = lambda x, L: square(2 * np.pi * x / L, 1/3)
 
-    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f1, a=1., rktype='RK44', anim=True)
+    res = advection1d(L_, n_, dt_, m_, p_, c_, f=f2, a=1., rktype='RK44', anim=True, save=False, tend=T_end)

@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 import gmsh
 import sys
 import os
-from matplotlib.animation import FuncAnimation
+from datetime import datetime
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 from scipy.special import roots_legendre
-from numpy import pi, sin, cos, sqrt
 from tqdm import tqdm
 
 ftSz1, ftSz2, ftSz3 = 20, 15, 12
@@ -20,6 +21,12 @@ def blockPrint():  # Disable
 
 def enablePrint():  # Restore
     sys.stdout = sys.__stdout__
+
+
+def make_colorbar_with_padding(ax):
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="2%", pad=0.1)
+    return cax
 
 
 def get_edges_mapping(order, Nt, Np):
@@ -136,7 +143,7 @@ def get_matrices_edges(elementType, order):
 def get_edge_flux_matrix(Nt, Np):
     flux_edge_temp = np.zeros((3, Nt, Np, 3, 3))
     indices = [[[], [], []], [[], [], []]]
-    zeros = np.zeros((3,3))
+    zeros = np.zeros((3, 3))
 
     for edgeTag, dic in edgesInInfo.items():  # loop over all the edges
         elemIn, elemOut = dic["elem"]
@@ -154,7 +161,6 @@ def get_edge_flux_matrix(Nt, Np):
             indices[0][0].append(lIn), indices[0][1].append(elemIn), indices[0][2].append(nodeIn)
             indices[1][0].append(lOut), indices[1][1].append(elemOut), indices[1][2].append(nodeOut)
 
-
     for edgeTag, dic in edgesBdInfo.items():
         elemIn, = dic["elem"]
         l, = dic["number"]
@@ -162,9 +168,12 @@ def get_edge_flux_matrix(Nt, Np):
         for nodeIn in nodesIndices_fwd[l]:
             An = A1 * dic["normal"][0] + A2 * dic["normal"][1]
 
-            if np.array_equal(dic["normal"], np.array([0, 1])) or np.array_equal(dic["normal"], np.array([0, -1])):
+            # if np.array_equal(dic["normal"], np.array([0, 1])) or np.array_equal(dic["normal"], np.array([0, -1])):
+            normal_ref = np.array([0., 1.])
+            if np.abs(np.dot(normal_ref, dic["normal"])) > 0.99:  # top and bottom walls
                 "Slip-walls BC"
-                n = np.diag([dic["normal"][0], dic["normal"][1], 0]) * np.array([[dic["normal"][0]], [dic["normal"][1]], [0]])
+                n = np.diag([dic["normal"][0], dic["normal"][1], 0]) * np.array(
+                    [[dic["normal"][0]], [dic["normal"][1]], [0]])
                 flux_edge_temp[l][elemIn][nodeIn] = (An - An @ n) * dic["length"]
 
             else:
@@ -197,7 +206,7 @@ def local_dot(phi, a, Nt, Np, t=0.):
         Flux_ksi[d] = Fx[d] * IJ[:, 0, 0, np.newaxis] + Fy[d] * IJ[:, 0, 1, np.newaxis]
         Flux_eta[d] = Fx[d] * IJ[:, 1, 0, np.newaxis] + Fy[d] * IJ[:, 1, 1, np.newaxis]
 
-    #Flux_edge = np.zeros((3, Nt, Np, 3))
+    # Flux_edge = np.zeros((3, Nt, Np, 3))
 
     # TODO
     """  # slower, but can modulate "a" and can handle vector fields changing in time
@@ -232,11 +241,12 @@ def local_dot(phi, a, Nt, Np, t=0.):
     Flux_edge = np.einsum("etpdi, itp -> etpd", Flux_edge_temp, phi)
     Flux_edge[idx[0]] += Flux_edge[idx[1]]
     Flux_edge[idx[1]] = -Flux_edge[idx[0]]
-    
+
     # """
 
     sum_edge_fluxes = np.array([sum(np.dot(Flux_edge[e, :, :, d], ME[e]) for e in range(3)) for d in range(3)])
-    sum_all_fluxes = np.array([np.dot(Flux_ksi[d], D[0].T) + np.dot(Flux_eta[d], D[1].T) - sum_edge_fluxes[d] for d in range(3)])
+    sum_all_fluxes = np.array(
+        [np.dot(Flux_ksi[d], D[0].T) + np.dot(Flux_eta[d], D[1].T) - sum_edge_fluxes[d] for d in range(3)])
 
     return np.array([np.dot(sum_all_fluxes[d] / det[:, np.newaxis], M_inv) for d in range(3)])
 
@@ -259,6 +269,9 @@ def rk22(phi, dt, m, a, Nt, Np):
 
 def rk44(phi, dt, m, a, Nt, Np):
     for i in tqdm(range(m)):
+        if np.any(phi[i, 2] > 1e10):
+            print("Crashed !!!")
+            exit(0)
         t = i * dt
         K1 = local_dot(phi[i], a, Nt, Np, t)
         K2 = local_dot(phi[i] + K1 * dt / 2., a, Nt, Np, t + dt / 2.)
@@ -269,8 +282,8 @@ def rk44(phi, dt, m, a, Nt, Np):
     return phi
 
 
-def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340, rktype="RK44", interactive=False,
-                order=3, a=1., save=False, plotReturn=False, display=False, animation=False):
+def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340., rktype="RK44", interactive=False,
+            order=3, a=1., save=False, plotReturn=False, display=False, animation=False):
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
     global A1, A2, rho
 
@@ -279,17 +292,16 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340, rktype="RK44", interact
     gmsh.model.mesh.setOrder(order)  # this is an option
 
     rho = 1
-    A1 = np.array([[u0, 0, 1], [0, u0, 0], [c0**2, 0, u0]])
-    A2 = np.array([[v0, 0, 0], [0, v0, 1], [0, c0**2, v0]])
+    A1 = np.array([[u0, 0, 1], [0, u0, 0], [c0 ** 2, 0, u0]])
+    A2 = np.array([[v0, 0, 0], [0, v0, 1], [0, c0 ** 2, v0]])
 
     Nt, Np, M, D, IJ, det, elementType, order = get_matrices()
     M_inv = np.linalg.inv(M)
     ME = get_matrices_edges(elementType, order)
     coordinates_matrix, edgesInInfo, edgesBdInfo, nodesIndices_fwd, nodesIndices_bwd = get_edges_mapping(order, Nt, Np)
 
-
     phi = np.zeros((m + 1, 3, Nt * Np))
-    phi[0,-1] = p_init(coordinates_matrix)
+    phi[0, -1] = p_init(coordinates_matrix)
     phi = phi.reshape((m + 1, 3, Nt, Np))
 
     Flux_edge_temp, idx = get_edge_flux_matrix(Nt, Np)
@@ -305,11 +317,11 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340, rktype="RK44", interact
         raise ValueError
 
     if display:
-        static_plots(coordinates_matrix, phi[:,-1], m)
+        static_plots(coordinates_matrix, phi[:, -1], m)
     if animation:
-        anim_plots(coordinates_matrix, phi[:,-1], m)
+        anim_plots(coordinates_matrix, phi, m)
     if interactive:
-        anim_gmsh(elementType, phi[:,-1], m, dt, save)
+        anim_gmsh(elementType, phi[:, -1], m, dt, save)
 
     gmsh.finalize()
 
@@ -338,23 +350,84 @@ def static_plots(coords, phi, m):
 
 def anim_plots(coords, phi, m):
     def update(t):
-        ax.clear()
-        return ax.tripcolor(coords[:, 0], coords[:, 1], phi[t].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1),
+        t *= skip
+        axs[1].clear()
+        colormap[0] = axs[1].tripcolor(coords[:, 0], coords[:, 1], p[t].flatten(), cmap=plt.get_cmap('jet'),
+                                vmin=np.amin(p), vmax=np.amax(p))
 
-    _, Nt, Np = phi.shape
+        q.set_UVC(u_node[t], v_node[t], speed[t])
+        time_text.set_text(time_str.format(t))
+        axs[1].axis([*axs[0].get_xlim(), *axs[0].get_ylim()])
+        pbar.update(1)
+        return q, time_text, colormap[0]
+
+    _, _, Nt, Np = phi.shape
+    rho_u, rho_v, p = phi[:, 0], phi[:, 1], phi[:, 2]
     node_coords = np.empty((3 * Nt, 2))
+    u_node = np.empty((m + 1, 3 * Nt))
+    v_node = np.empty((m + 1, 3 * Nt))
     for i in range(Nt):
         node_coords[3 * i] = coords[Np * i]
         node_coords[3 * i + 1] = coords[Np * i + 1]
         node_coords[3 * i + 2] = coords[Np * i + 2]
-    fig, ax = plt.subplots(1, 1, figsize=(10., 8.))
-    colormap = ax.tripcolor(coords[:, 0], coords[:, 1], phi[0].flatten(), cmap=plt.get_cmap('jet'), vmin=0, vmax=1)
-    _ = fig.colorbar(colormap)
-    ax.set_aspect("equal")
+        u_node[:, 3 * i] = phi[:, 0, i, 0]
+        u_node[:, 3 * i + 1] = phi[:, 0, i, 1]
+        u_node[:, 3 * i + 2] = phi[:, 0, i, 2]
+        v_node[:, 3 * i] = phi[:, 1, i, 0]
+        v_node[:, 3 * i + 1] = phi[:, 1, i, 1]
+        v_node[:, 3 * i + 2] = phi[:, 1, i, 2]
+
+    # Retrieve full mesh of arrows
+    # u_node = rho_u
+    # v_node = rho_v
+    # node_coords = coords
+
+    L = np.amax(coords[:, 0]) - np.amin(coords[:, 0])
+    H = np.amax(coords[:, 1]) - np.amin(coords[:, 1])
+    n_vert, n_horiz = (2, 1) if L >= 2. * H else (1, 2)
+    pos_text = (0.9, 0.8) if L >= 2 * H else (0.8, 0.9)
+
+    fig, axs = plt.subplots(n_vert, n_horiz, figsize=(12., 6.), sharex="all", sharey="all")
+    cax_v, cax_p = make_colorbar_with_padding(axs[0]), make_colorbar_with_padding(axs[1])
+
+    speed = np.hypot(u_node, v_node)
+    q = axs[0].quiver(node_coords[:, 0], node_coords[:, 1], u_node[0], v_node[1], speed[1], units="xy",
+                      clim=[np.amin(speed), np.amax(speed)], scale=np.amax(u_node) * 5.)
+
+    colormap = [axs[1].tripcolor(coords[:, 0], coords[:, 1], p[0].flatten(), cmap=plt.get_cmap('jet'),
+                                vmin=np.amin(p), vmax=np.amax(p))]
+
+    cbar_v = fig.colorbar(q, cax=cax_v)
+    cbar_p = fig.colorbar(colormap[0], cax=cax_p)
+    cbar_v.ax.set_ylabel(r"$v$", fontsize=ftSz3)
+    cbar_p.ax.set_ylabel(r"$p$", fontsize=ftSz3)
+    # axs[-1].set_xlabel(r"x", fontsize=ftSz2)
+    # axs[0].set_ylabel(r"y", fontsize=ftSz2)
+    # axs[1].set_ylabel(r"y", fontsize=ftSz2)
+
+    axs[0].axis([np.amin(coords[:, 0]), np.amax(coords[:, 0]), np.amin(coords[:, 1]), np.amax(coords[:, 1])])
+    axs[1].axis([*axs[0].get_xlim(), *axs[0].get_ylim()])
+    axs[0].set_aspect("equal")
+    axs[1].set_aspect("equal")
+
+    time_str = r"$t = \mathtt{{{:d}}}$"
+    bbox_dic = dict(boxstyle="round", fc="wheat", ec="none", alpha=0.85)
+    time_text = axs[0].text(*pos_text, "", fontsize=ftSz2, transform=axs[0].transAxes, bbox=bbox_dic)
     fig.tight_layout()
 
-    _ = FuncAnimation(fig, update, m + 1, interval=20, repeat_delay=2000)
-    plt.show()
+    save = True
+    skip = 3
+    nFrames = m // skip + 1
+    pbar = tqdm(total=nFrames)
+    anim = FuncAnimation(fig, update, nFrames, init_func=lambda: None, interval=500, repeat_delay=2000)
+    if save:
+        writerMP4 = FFMpegWriter(fps=24)
+        hms = datetime.now().strftime("%H_%M_%S")
+        anim.save(f"./Animations/anim_{hms}.mp4", writer=writerMP4)
+        pbar.close()
+    else:
+        plt.show()
+        pbar.close()
 
 
 def anim_gmsh(elementType, phi, m, dt, save=False):
@@ -369,7 +442,8 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
         ratio = 5
         for t in tqdm(range(0, m + 1, ratio)):
             data = phi[t].reshape(Nt * Np, -1)
-            gmsh.view.addModelData(viewTag, 0, modelName, "NodeData", elementNodeTags, data, numComponents=1, time=t * dt)
+            gmsh.view.addModelData(viewTag, 0, modelName, "NodeData", elementNodeTags, data, numComponents=1,
+                                   time=t * dt)
 
             gmsh.option.set_number("View.RangeType", 2)
             gmsh.option.set_number("View.CustomMin", -0.25)  # -0.025
@@ -386,7 +460,8 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
     else:
         for t in range(0, m + 1, 5):
             data = phi[t].reshape(Nt * Np, -1)
-            gmsh.view.addModelData(viewTag, t, modelName, "NodeData", elementNodeTags, data, numComponents=1, time=t * dt)
+            gmsh.view.addModelData(viewTag, t, modelName, "NodeData", elementNodeTags, data, numComponents=1,
+                                   time=t * dt)
         gmsh.view.combine("steps", "all")
         gmsh.fltk.run()
 
@@ -395,23 +470,37 @@ def my_initial_condition(x):
     xc = x[:, 0] - 0.5
     yc = x[:, 1] - 0.5
     l2 = xc ** 2 + yc ** 2
-    return np.exp(-l2 * 10.)
+    d = 0.2
+    return 5. * np.exp(-l2 / (d * d))
 
+
+def oscillating_pressure(x):
+    xc = x[:, 0] - 0.5
+    yc = x[:, 1] - 0.5
+    l2 = xc ** 2 + yc ** 2
+    d = 0.2
+    return 1. * np.exp(-l2 / (d*d)) * np.cos(2 * np.pi * np.hypot(xc, yc) / (1. * d))
+
+
+def pressure_gradient(x):
+    x, y = x[:, 0], x[:, 1]
+    return x
 
 
 if __name__ == "__main__":
-
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, \
         nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
-    #dt = 2*h/340
+    dt = 0.1 * (1. / 15.) / (340 + 300)  # 2 * h_ / (u0 + c)  # where h_ is the mesh size of sub-element
+    print(f"dt = {dt:.3e} s  -->  should be stable")
+    m = 900
 
     # euler2d("./mesh/square_best.msh", 0.08*2/50/540, 100, 0, 0, my_initial_condition, interactive=False,
     #             order=3, a=1., display=True, animation=False, save=False)
 
-    euler2d("./mesh/square_low.msh", 0.00002, 200, 100, 0, my_initial_condition, interactive=False,
-                order=3, a=1., display=True, animation=True , save=False)
+    # euler2d("./mesh/square_low.msh", 0.00002, 200, -100, 0, my_initial_condition, interactive=False,
+    #         order=3, a=1., display=False, animation=True, save=False)
 
-
-
+    euler2d("./mesh/rectangle_wide.msh", dt, m, 300, 0, my_initial_condition, interactive=False,
+            order=3, a=1., display=False, animation=True, save=False)
 

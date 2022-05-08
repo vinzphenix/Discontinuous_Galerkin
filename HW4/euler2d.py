@@ -301,7 +301,8 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340., rktype="RK44", interac
     coordinates_matrix, edgesInInfo, edgesBdInfo, nodesIndices_fwd, nodesIndices_bwd = get_edges_mapping(order, Nt, Np)
 
     phi = np.zeros((m + 1, 3, Nt * Np))
-    phi[0, -1] = p_init(coordinates_matrix)
+    # phi[0, 0] = initial_velocity(coordinates_matrix)
+    phi[0, 2] = p_init(coordinates_matrix)
     phi = phi.reshape((m + 1, 3, Nt, Np))
 
     Flux_edge_temp, idx = get_edge_flux_matrix(Nt, Np)
@@ -362,7 +363,7 @@ def anim_plots(coords, phi, m):
         return q, time_text, colormap[0]
 
     _, _, Nt, Np = phi.shape
-    rho_u, rho_v, p = phi[:, 0], phi[:, 1], phi[:, 2]
+    rho_u, rho_v, p = phi[:, 0], phi[:, 1], phi[:, 2] * 1e-5
     node_coords = np.empty((3 * Nt, 2))
     u_node = np.empty((m + 1, 3 * Nt))
     v_node = np.empty((m + 1, 3 * Nt))
@@ -387,20 +388,24 @@ def anim_plots(coords, phi, m):
     n_vert, n_horiz = (2, 1) if L >= 2. * H else (1, 2)
     pos_text = (0.9, 0.8) if L >= 2 * H else (0.8, 0.9)
 
-    fig, axs = plt.subplots(n_vert, n_horiz, figsize=(12., 6.), sharex="all", sharey="all")
+    h = 6
+    w = h * n_horiz/n_vert * L / H
+
+    fig, axs = plt.subplots(n_vert, n_horiz, figsize=(w, h), sharex="all", sharey="all")
     cax_v, cax_p = make_colorbar_with_padding(axs[0]), make_colorbar_with_padding(axs[1])
 
     speed = np.hypot(u_node, v_node)
+    start = 0
     q = axs[0].quiver(node_coords[:, 0], node_coords[:, 1], u_node[0], v_node[1], speed[1], units="xy",
-                      clim=[np.amin(speed), np.amax(speed)], scale=np.amax(u_node) * 5.)
+                      clim=[np.amin(speed[start:]), np.amax(speed[start:])], scale=np.amax(speed[start:]) * 4.)
 
     colormap = [axs[1].tripcolor(coords[:, 0], coords[:, 1], p[0].flatten(), cmap=plt.get_cmap('jet'),
                                 vmin=np.amin(p), vmax=np.amax(p))]
 
     cbar_v = fig.colorbar(q, cax=cax_v)
     cbar_p = fig.colorbar(colormap[0], cax=cax_p)
-    cbar_v.ax.set_ylabel(r"$v$", fontsize=ftSz3)
-    cbar_p.ax.set_ylabel(r"$p$", fontsize=ftSz3)
+    cbar_v.ax.set_ylabel(r"$v$ [m/s]", fontsize=ftSz3)
+    cbar_p.ax.set_ylabel(r"$p$ [bar]", fontsize=ftSz3)
     # axs[-1].set_xlabel(r"x", fontsize=ftSz2)
     # axs[0].set_ylabel(r"y", fontsize=ftSz2)
     # axs[1].set_ylabel(r"y", fontsize=ftSz2)
@@ -416,7 +421,7 @@ def anim_plots(coords, phi, m):
     fig.tight_layout()
 
     save = True
-    skip = 3
+    skip = 2
     nFrames = m // skip + 1
     pbar = tqdm(total=nFrames)
     anim = FuncAnimation(fig, update, nFrames, init_func=lambda: None, interval=500, repeat_delay=2000)
@@ -466,34 +471,45 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
         gmsh.fltk.run()
 
 
+def initial_velocity(x):
+    xc = x[:, 0] - 0.75
+    yc = x[:, 1] - 0.75
+    l2 = xc ** 2 + yc ** 2
+    d = 0.3
+    return 400. * np.exp(-l2 / (d * d))
+
+
 def my_initial_condition(x):
-    xc = x[:, 0] - 0.5
-    yc = x[:, 1] - 0.5
+    xc = x[:, 0] - 0.75
+    yc = x[:, 1] - 0.75
     l2 = xc ** 2 + yc ** 2
     d = 0.2
-    return 5. * np.exp(-l2 / (d * d))
+    return 1.e5 * np.exp(-l2 / (d * d))
 
 
 def oscillating_pressure(x):
-    xc = x[:, 0] - 0.5
-    yc = x[:, 1] - 0.5
+    xc = x[:, 0] - 0.75
+    yc = x[:, 1] - 0.75
     l2 = xc ** 2 + yc ** 2
     d = 0.2
-    return 1. * np.exp(-l2 / (d*d)) * np.cos(2 * np.pi * np.hypot(xc, yc) / (1. * d))
+    return 1.e5 * np.exp(-l2 / (d * d)) * (1 + np.cos(2 * np.pi * np.hypot(xc, yc) / (2. * d)))
 
 
-def pressure_gradient(x):
-    x, y = x[:, 0], x[:, 1]
-    return x
+def multiple(x):  # for "rectangle"
+    xc1, yc1 = x[:, 0] - 0.5, x[:, 1] - 0.25
+    xc2, yc2 = x[:, 0] - 1.5, x[:, 1] - 0.75
+    rsq1, rsq2 = xc1 ** 2 + yc1 ** 2, xc2 ** 2 + yc2 ** 2,
+    d = 0.2
+    return 1.e5 * (np.exp(-rsq1 / (d * d)) + np.exp(-rsq2 / (d * d)))
 
 
 if __name__ == "__main__":
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, \
         nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
 
-    dt = 0.1 * (1. / 15.) / (340 + 300)  # 2 * h_ / (u0 + c)  # where h_ is the mesh size of sub-element
+    dt = 0.1 * (1. / 15.) / (340 + 100)  # 2 * h_ / (u0 + c)  # where h_ is the mesh size of sub-element
     print(f"dt = {dt:.3e} s  -->  should be stable")
-    m = 900
+    m = 1000
 
     # euler2d("./mesh/square_best.msh", 0.08*2/50/540, 100, 0, 0, my_initial_condition, interactive=False,
     #             order=3, a=1., display=True, animation=False, save=False)
@@ -501,6 +517,6 @@ if __name__ == "__main__":
     # euler2d("./mesh/square_low.msh", 0.00002, 200, -100, 0, my_initial_condition, interactive=False,
     #         order=3, a=1., display=False, animation=True, save=False)
 
-    euler2d("./mesh/rectangle_wide.msh", dt, m, 300, 0, my_initial_condition, interactive=False,
+    euler2d("./mesh/rectangle_short.msh", dt, m, 100, 0, oscillating_pressure, interactive=False,
             order=3, a=1., display=False, animation=True, save=False)
 

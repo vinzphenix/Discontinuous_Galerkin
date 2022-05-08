@@ -77,8 +77,8 @@ def create_rectangle(filename, elemSizeRatio):
     gmsh.initialize()
     gmsh.model.add("rectangle")
 
-    X = 4.0
-    Y = 2.0
+    X = 4.5
+    Y = 1.5
     # lc = 0.03 * (X * X + Y * Y) ** 0.5
 
     rect = gmsh.model.occ.add_rectangle(0, 0, 0, X, Y, 0)
@@ -98,4 +98,4 @@ def create_rectangle(filename, elemSizeRatio):
 # create_square("square_best.msh", elemSizeRatio=1./50.)
 # create_circle("circle_h8.msh", elemSizeRatio=8./100.)
 # create_hole("hole.msh", elemSizeRatio=1./20.)
-create_rectangle("rectangle_wide.msh", elemSizeRatio=1./15.)
+create_rectangle("rectangle_short.msh", elemSizeRatio=1./12.)

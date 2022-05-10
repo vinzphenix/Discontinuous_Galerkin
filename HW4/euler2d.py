@@ -187,7 +187,7 @@ def get_edge_flux_matrix(Nt, Np):
     return flux_edge_temp, indices
 
 
-def local_dot(phi, a, Nt, Np, t=0.):
+def local_dot(phi, a, Nt, Np, t=0., source=0.):
     # T = 8.
     # velocity_local = velocity * cos(pi * t / T)
 
@@ -248,6 +248,11 @@ def local_dot(phi, a, Nt, Np, t=0.):
     sum_all_fluxes = np.array(
         [np.dot(Flux_ksi[d], D[0].T) + np.dot(Flux_eta[d], D[1].T) - sum_edge_fluxes[d] for d in range(3)])
 
+    # func = lambda tau: np.exp(-tau * tau / 2.)
+    # pulse_period = 0.00125
+    # pulse_width = 1./25.  # duration of the pulse as a fraction of the period
+    # sum_all_fluxes[2] += source * func((np.fmod(t/pulse_period + 0.5, 1.) - 0.5) / pulse_width)
+
     return np.array([np.dot(sum_all_fluxes[d] / det[:, np.newaxis], M_inv) for d in range(3)])
 
 
@@ -267,16 +272,16 @@ def rk22(phi, dt, m, a, Nt, Np):
     return phi
 
 
-def rk44(phi, dt, m, a, Nt, Np):
+def rk44(phi, dt, m, a, Nt, Np, source=0.):
     for i in tqdm(range(m)):
         if np.any(phi[i, 2] > 1e10):
             print("Crashed !!!")
             exit(0)
         t = i * dt
-        K1 = local_dot(phi[i], a, Nt, Np, t)
-        K2 = local_dot(phi[i] + K1 * dt / 2., a, Nt, Np, t + dt / 2.)
-        K3 = local_dot(phi[i] + K2 * dt / 2., a, Nt, Np, t + dt / 2.)
-        K4 = local_dot(phi[i] + K3 * dt, a, Nt, Np, t + dt)
+        K1 = local_dot(phi[i], a, Nt, Np, t, source)
+        K2 = local_dot(phi[i] + K1 * dt / 2., a, Nt, Np, t + dt / 2., source)
+        K3 = local_dot(phi[i] + K2 * dt / 2., a, Nt, Np, t + dt / 2., source)
+        K4 = local_dot(phi[i] + K3 * dt, a, Nt, Np, t + dt, source)
         phi[i + 1] = phi[i] + dt * (K1 + 2. * K2 + 2. * K3 + K4) / 6.
 
     return phi
@@ -307,12 +312,15 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340., rktype="RK44", interac
 
     Flux_edge_temp, idx = get_edge_flux_matrix(Nt, Np)
 
+    # source = p_init(coordinates_matrix).reshape((-1, Np))
+    source = 0.
+
     if rktype == 'ForwardEuler':
         fwd_euler(phi, dt, m, a, Nt, Np)
     elif rktype == 'RK22':
         rk22(phi, dt, m, a, Nt, Np)
     elif rktype == 'RK44':
-        rk44(phi, dt, m, a, Nt, Np)
+        rk44(phi, dt, m, a, Nt, Np, source)
     else:
         print("The integration method should be 'ForwardEuler', 'RK22', 'RK44'")
         raise ValueError
@@ -320,7 +328,7 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340., rktype="RK44", interac
     if display:
         static_plots(coordinates_matrix, phi[:, -1], m)
     if animation:
-        anim_plots(coordinates_matrix, phi, m)
+        anim_plots(coordinates_matrix, phi, m, u0)
     if interactive:
         anim_gmsh(elementType, phi[:, -1], m, dt, save)
 
@@ -349,7 +357,7 @@ def static_plots(coords, phi, m):
     plt.show()
 
 
-def anim_plots(coords, phi, m):
+def anim_plots(coords, phi, m, u0=0):
     def update(t):
         t *= skip
         axs[1].clear()
@@ -363,7 +371,7 @@ def anim_plots(coords, phi, m):
         return q, time_text, colormap[0]
 
     _, _, Nt, Np = phi.shape
-    rho_u, rho_v, p = phi[:, 0], phi[:, 1], phi[:, 2] * 1e-5
+    rho_u, rho_v, p = phi[:, 0], phi[:, 1], phi[:, 2] * 1e-2
     node_coords = np.empty((3 * Nt, 2))
     u_node = np.empty((m + 1, 3 * Nt))
     v_node = np.empty((m + 1, 3 * Nt))
@@ -397,7 +405,7 @@ def anim_plots(coords, phi, m):
     speed = np.hypot(u_node, v_node)
     start = 0
     q = axs[0].quiver(node_coords[:, 0], node_coords[:, 1], u_node[0], v_node[1], speed[1], units="xy",
-                      clim=[np.amin(speed[start:]), np.amax(speed[start:])], scale=np.amax(speed[start:]) * 4.)
+                      clim=[np.amin(speed[start:]), np.amax(speed[start:])], scale=np.amax(speed[start:]) * 3.)
 
     colormap = [axs[1].tripcolor(coords[:, 0], coords[:, 1], p[0].flatten(), cmap=plt.get_cmap('jet'),
                                 vmin=np.amin(p), vmax=np.amax(p))]
@@ -405,7 +413,7 @@ def anim_plots(coords, phi, m):
     cbar_v = fig.colorbar(q, cax=cax_v)
     cbar_p = fig.colorbar(colormap[0], cax=cax_p)
     cbar_v.ax.set_ylabel(r"$v$ [m/s]", fontsize=ftSz3)
-    cbar_p.ax.set_ylabel(r"$p$ [bar]", fontsize=ftSz3)
+    cbar_p.ax.set_ylabel(r"$\Delta p$ [mbar]", fontsize=ftSz3)
     # axs[-1].set_xlabel(r"x", fontsize=ftSz2)
     # axs[0].set_ylabel(r"y", fontsize=ftSz2)
     # axs[1].set_ylabel(r"y", fontsize=ftSz2)
@@ -428,7 +436,7 @@ def anim_plots(coords, phi, m):
     if save:
         writerMP4 = FFMpegWriter(fps=24)
         hms = datetime.now().strftime("%H_%M_%S")
-        anim.save(f"./Animations/anim_{hms}.mp4", writer=writerMP4)
+        anim.save(f"./Animations/anim_{hms}_u_mean_{u0:.0f}.mp4", writer=writerMP4)
         pbar.close()
     else:
         plt.show()
@@ -480,11 +488,11 @@ def initial_velocity(x):
 
 
 def my_initial_condition(x):
-    xc = x[:, 0] - 0.75
+    xc = x[:, 0] - 1.5
     yc = x[:, 1] - 0.75
     l2 = xc ** 2 + yc ** 2
-    d = 0.2
-    return 1.e5 * np.exp(-l2 / (d * d))
+    d = 0.2  # 0.05
+    return 1.e4 * np.exp(-l2 / (d * d))
 
 
 def oscillating_pressure(x):
@@ -492,15 +500,15 @@ def oscillating_pressure(x):
     yc = x[:, 1] - 0.75
     l2 = xc ** 2 + yc ** 2
     d = 0.2
-    return 1.e5 * np.exp(-l2 / (d * d)) * (1 + np.cos(2 * np.pi * np.hypot(xc, yc) / (2. * d)))
+    return 1.e4 * np.exp(-l2 / (d * d)) * (1 + np.cos(2 * np.pi * np.hypot(xc, yc) / (2. * d)))
 
 
 def multiple(x):  # for "rectangle"
-    xc1, yc1 = x[:, 0] - 0.5, x[:, 1] - 0.25
+    xc1, yc1 = x[:, 0] - 0.5, x[:, 1] - 0.75
     xc2, yc2 = x[:, 0] - 1.5, x[:, 1] - 0.75
     rsq1, rsq2 = xc1 ** 2 + yc1 ** 2, xc2 ** 2 + yc2 ** 2,
     d = 0.2
-    return 1.e5 * (np.exp(-rsq1 / (d * d)) + np.exp(-rsq2 / (d * d)))
+    return 1.e4 * (np.exp(-rsq1 / (d * d)) + np.exp(-rsq2 / (d * d)))
 
 
 if __name__ == "__main__":
@@ -509,7 +517,9 @@ if __name__ == "__main__":
 
     dt = 0.1 * (1. / 15.) / (340 + 100)  # 2 * h_ / (u0 + c)  # where h_ is the mesh size of sub-element
     print(f"dt = {dt:.3e} s  -->  should be stable")
-    m = 1000
+    m = 100
+    # m = int(np.ceil(1.515e-2 / dt))
+    # print(m)
 
     # euler2d("./mesh/square_best.msh", 0.08*2/50/540, 100, 0, 0, my_initial_condition, interactive=False,
     #             order=3, a=1., display=True, animation=False, save=False)
@@ -517,6 +527,5 @@ if __name__ == "__main__":
     # euler2d("./mesh/square_low.msh", 0.00002, 200, -100, 0, my_initial_condition, interactive=False,
     #         order=3, a=1., display=False, animation=True, save=False)
 
-    euler2d("./mesh/rectangle_short.msh", dt, m, 100, 0, oscillating_pressure, interactive=False,
+    euler2d("./mesh/rectangle_short.msh", dt, m, 340*0.5, 0, my_initial_condition, interactive=False,
             order=3, a=1., display=False, animation=True, save=False)
-

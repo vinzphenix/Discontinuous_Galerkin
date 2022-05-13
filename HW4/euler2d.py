@@ -140,7 +140,7 @@ def get_matrices_edges(elementType, order):
     return M1, M2, M3
 
 
-def get_edge_flux_matrix(Nt, Np):
+def get_edge_flux_matrix(Nt, Np, slip_walls):
     flux_edge_temp = np.zeros((3, Nt, Np, 3, 3))
     indices = [[[], [], []], [[], [], []]]
     zeros = np.zeros((3, 3))
@@ -170,7 +170,7 @@ def get_edge_flux_matrix(Nt, Np):
 
             # if np.array_equal(dic["normal"], np.array([0, 1])) or np.array_equal(dic["normal"], np.array([0, -1])):
             normal_ref = np.array([0., 1.])
-            if np.abs(np.dot(normal_ref, dic["normal"])) > 0.99:  # top and bottom walls
+            if np.abs(np.dot(normal_ref, dic["normal"])) > 0.99 and slip_walls:  # top and bottom walls
                 "Slip-walls BC"
                 n = np.diag([dic["normal"][0], dic["normal"][1], 0]) * np.array(
                     [[dic["normal"][0]], [dic["normal"][1]], [0]])
@@ -288,7 +288,7 @@ def rk44(phi, dt, m, a, Nt, Np, source=0.):
 
 
 def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340., rktype="RK44", interactive=False,
-            order=3, a=1., save=False, plotReturn=False, display=False, animation=False):
+            order=3, a=1., slip_walls = True, save=False, plotReturn=False, display=False, animation=False):
     global M_inv, D, ME, IJ, det, edgesInInfo, edgesBdInfo, velocity, nodesIndices_fwd, nodesIndices_bwd, Flux_edge_temp, idx
     global A1, A2, rho
 
@@ -310,7 +310,7 @@ def euler2d(meshfilename, dt, m, u0, v0, p_init, c0=340., rktype="RK44", interac
     phi[0, 2] = p_init(coordinates_matrix)
     phi = phi.reshape((m + 1, 3, Nt, Np))
 
-    Flux_edge_temp, idx = get_edge_flux_matrix(Nt, Np)
+    Flux_edge_temp, idx = get_edge_flux_matrix(Nt, Np, slip_walls)
 
     # source = p_init(coordinates_matrix).reshape((-1, Np))
     source = 0.
@@ -350,8 +350,8 @@ def static_plots(coords, phi, m):
     fig, axs = plt.subplots(3, 3, figsize=(14., 14.), constrained_layout=True, sharex="all", sharey="all")
     for i, ax in enumerate(axs.flatten()):
         # ax.tricontourf(coords[:, 0], coords[:, 1], phi[i].flatten(), cmap=plt.get_cmap('jet'))
-        ax.tripcolor(coords[:, 0], coords[:, 1], phi[(i * m) // 8].flatten(), cmap=plt.get_cmap('jet'), vmin=0,
-                     vmax=1)
+        ax.tripcolor(coords[:, 0], coords[:, 1], phi[(i * m) // 8].flatten(), cmap=plt.get_cmap('jet'),
+                     vmin=np.amin(phi), vmax=np.amax(phi))
         ax.triplot(node_coords[:, 0], node_coords[:, 1], lw=0.5)
         ax.set_aspect("equal")
     plt.show()

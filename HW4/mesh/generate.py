@@ -6,11 +6,12 @@ def create_square(filename, elemSizeRatio):
     gmsh.initialize()
     gmsh.model.add("t1")
     # lc = 0.1
-    lc = elemSizeRatio / 1.
-    gmsh.model.geo.addPoint(0, 0, 0, lc, 1)
-    gmsh.model.geo.addPoint(1, 0, 0, lc, 2)
-    gmsh.model.geo.addPoint(1, 1, 0, lc, 3)
-    p4 = gmsh.model.geo.addPoint(0, 1, 0, lc)
+    L = 1.
+    lc = L * elemSizeRatio
+    gmsh.model.geo.addPoint(-L/2, -L/2, 0, lc, 1)
+    gmsh.model.geo.addPoint(L/2, -L/2, 0, lc, 2)
+    gmsh.model.geo.addPoint(L/2, L/2, 0, lc, 3)
+    p4 = gmsh.model.geo.addPoint(-L/2, L/2, 0, lc)
     gmsh.model.geo.addLine(1, 2, 1)
     gmsh.model.geo.addLine(3, 2, 2)
     gmsh.model.geo.addLine(3, p4, 3)
@@ -77,12 +78,12 @@ def create_rectangle(filename, elemSizeRatio):
     gmsh.initialize()
     gmsh.model.add("rectangle")
 
-    X = 4.5
-    Y = 1.5
+    X = 1000.
+    Y = 250.
     # lc = 0.03 * (X * X + Y * Y) ** 0.5
 
     rect = gmsh.model.occ.add_rectangle(0, 0, 0, X, Y, 0)
-    gmsh.model.mesh.set_size_callback(lambda *args: elemSizeRatio)
+    gmsh.model.mesh.set_size_callback(lambda *args: elemSizeRatio*Y)
 
     gmsh.model.occ.synchronize()
     gmsh.model.mesh.generate(2)
@@ -95,7 +96,7 @@ def create_rectangle(filename, elemSizeRatio):
     gmsh.finalize()
 
 
-# create_square("square_best.msh", elemSizeRatio=1./50.)
+# create_square("square_compare.msh", elemSizeRatio=1/20.2)
 # create_circle("circle_h8.msh", elemSizeRatio=8./100.)
 # create_hole("hole.msh", elemSizeRatio=1./20.)
-create_rectangle("rectangle_short.msh", elemSizeRatio=1./12.)
+create_rectangle("rectangle_true.msh", elemSizeRatio=1./13)

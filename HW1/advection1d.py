@@ -183,7 +183,7 @@ def plot_function(u, L, n, dt, m, p, c, f, save=False, tend=0.):
 
     if save:
         writerMP4 = FFMpegWriter(fps=fps)
-        anim.save(f"./Figures/anim.mp4", writer=writerMP4)
+        anim.save(f"./figures/anim.mp4", writer=writerMP4)
     else:
         # to get only one frame at t = i
         # i = m ; init() ; animate(i)

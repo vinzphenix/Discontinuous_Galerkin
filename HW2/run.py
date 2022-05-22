@@ -86,7 +86,7 @@ def compare_solutions(glass=False, bctype="periodic", name="", save=False):
                      ncol=4, facecolor='wheat', framealpha=0.25, fancybox=True, fontsize=ftSz3)
 
     if save:
-        fig.savefig(f"./Figures/{name}.svg", format="svg", bbox_inches='tight', bbox_extra_artists=(lgd,))
+        fig.savefig(f"./figures/{name}.svg", format="svg", bbox_inches='tight', bbox_extra_artists=(lgd,))
     else:
         plt.show()
 

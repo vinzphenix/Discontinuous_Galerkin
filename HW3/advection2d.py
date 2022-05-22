@@ -353,7 +353,7 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
             # gmsh.option.set_number("View.OffsetX", 400)
             # gmsh.option.set_number("View.OffsetY", 15)
 
-            gmsh.write(f"./Animations/image_{t // ratio:04d}.jpg")
+            gmsh.write(f"./animations/image_{t // ratio:04d}.jpg")
 
     else:
         for t in range(0, m + 1, 5):

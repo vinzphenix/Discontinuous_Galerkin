@@ -408,7 +408,7 @@ def anim_plots(coords, phi, m, u0=0):
     if save:
         writerMP4 = FFMpegWriter(fps=24)
         hms = datetime.now().strftime("%H_%M_%S")
-        anim.save(f"./Animations/anim_{hms}_u_mean_{u0:.0f}.mp4", writer=writerMP4)
+        anim.save(f"./animations/anim_{hms}_u_mean_{u0:.0f}.mp4", writer=writerMP4)
         pbar.close()
     else:
         plt.show()
@@ -440,7 +440,7 @@ def anim_gmsh(elementType, phi, m, dt, save=False):
             # gmsh.option.set_number("View.OffsetX", 400)
             # gmsh.option.set_number("View.OffsetY", 15)
 
-            gmsh.write(f"./Animations/image_{t // ratio:04d}.jpg")
+            gmsh.write(f"./animations/image_{t // ratio:04d}.jpg")
 
     else:
         for t in range(0, m + 1, 5):

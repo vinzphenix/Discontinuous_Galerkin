@@ -1,0 +1,235 @@
+\documentclass[11 pt]{article}
+\usepackage{structure}
+
+
+\title{LMECA2300 - Advanced numerical methods - Assignment 2}
+\author{
+    DEGROOFF\\ Vincent\\ 09341800
+    \and
+    HENNEFFE\\ Christophe\\ 14831800
+    \and
+    MOUSAVI BAYGI\\ Seyedeh Toktam\\ 08172101
+}
+\date{Thursday 10 March 2022}
+
+\begin{document}
+
+\maketitle
+
+\vspace{-2mm}
+The system of partial differential equations considered in this homework:
+
+\begin{align}
+    \pdv{E}{t} + \frac{1}{\varepsilon} \pdv{H}{x} &= 0 \label{eq:pde1}\\
+    \pdv{H}{t} + \frac{1}{\mu} \pdv{E}{x} &= 0\label{eq:pde2}\\[5pt]
+    \iff \quad \pdv{}{t}
+        \begin{pmatrix}E\\H\end{pmatrix}
+    +
+    \underbrace{
+    \begin{pmatrix}
+    0& \sfrac{1}{\varepsilon} \\
+    \sfrac{1}{\mu} & 0
+    \end{pmatrix}
+    }_{A}
+    &\pdv{}{t}
+    \begin{pmatrix}E\\H\end{pmatrix}
+    =\mathbf{0}\nonumber
+\end{align}
+
+\vspace{-6mm}
+\section{Transformation of the system into wave equations}
+We can derive equation \eqref{eq:pde1} with respect to $t$ and equation \eqref{eq:pde2} with respect to $x$,
+\begin{align*}
+    \pdv[2]{E}{t} + \frac{1}{\varepsilon} \pdv[2]{H}{t}{x}&=0\\
+    \frac{1}{\varepsilon}\pdv[2]{H}{x}{t} + \frac{1}{\varepsilon \mu} \pdv[2]{E}{x}&=0
+\end{align*}
+
+Combining these two equations, we get a wave equation for $E(x,t)$ with a velocity $c\coloneqq 1/\sqrt{\varepsilon \mu}$. If we derive equation \eqref{eq:pde1} with respect to $x$ and \eqref{eq:pde2} with respect to $t$, we obtain an identical wave equation for the magnetic field $H(x,t)$:
+\begin{align*}
+    \pdv[2]{E}{t} = c^2\pdv[2]{E}{x} \qquad \text{and} \qquad \pdv[2]{H}{t} = c^2\pdv[2]{H}{x}
+\end{align*}
+
+The velocity of these waves is the speed of light in the considered medium. If the waves travel in the vacuum, $c \approx \SI{2.9979e8}{\metre\per\second}$ using the permittivity $\varepsilon_0$ and permeability $\mu_0$.
+
+\section{Analytical solutions in an infinite domain}
+The system of equations \eqref{eq:pde1} and \eqref{eq:pde2} can be decoupled by diagonalizing the matrix $A$:
+\begin{align*}
+    \mathbf{A} =
+    \begin{pmatrix}
+    0& \sfrac{1}{\varepsilon}\\
+    \sfrac{1}{\mu} & 0
+    \end{pmatrix} = \mathbf{S \Lambda S^{-1}} =
+    \begin{pmatrix}
+    \sqrt{\mu}& \phantom{+}\sqrt{\mu} \\
+    \sqrt{\varepsilon} & -\sqrt{\varepsilon}
+    \end{pmatrix}
+    \begin{pmatrix}
+    c & 0 \\
+    0 & -c
+    \end{pmatrix}
+    \left[\begin{pmatrix}
+    \sqrt{\sfrac{1}{\mu}}& \phantom{+}\sqrt{\sfrac{1}{\varepsilon}} \\
+    \sqrt{\sfrac{1}{\mu}}& -\sqrt{\sfrac{1}{\varepsilon}}
+    \end{pmatrix} \frac{1}{2}\right]
+\end{align*}
+
+From here, we can make a change of variables from $(E,H)$ to $(v_1, v_2)$ and obtain the decoupled equations:
+\begin{align}
+    \mathbf{v} = \begin{pmatrix}v_1 \\ v_2\end{pmatrix} \coloneqq \mathbf{S^{-1}} \begin{pmatrix}E \\ H\end{pmatrix} \qquad \implies \qquad
+    \pdv{\mathbf{v}}{t} + \Lambda \pdv{\mathbf{v}}{x} = 0 \label{eq:basis}
+\end{align}
+
+Therefore, $v_1(x,t)$ and $v_2(x, t)$ are the solutions of 1-dimensional transport PDE's with velocities given by the eigenvalues of $A$, $+c$ and $-c$
+\begin{align*}
+    \partial_t v_1 + c \: \partial_x v_2 = 0 \quad \implies \quad v_1(x, t) = v_1(x - ct, 0)\\
+    \partial_t v_1 - c \: \partial_x v_2 = 0 \quad \implies \quad v_2(x, t) = v_2(x + ct, 0)
+\end{align*}
+
+With our initial conditions, this gives:
+\begin{align*}
+    v_1(x, t) = \frac{1}{2\sqrt{\mu}} E(x-ct, 0) + \frac{1}{2\sqrt{\varepsilon}} H(x-ct, 0) = \frac{1}{2\sqrt{\varepsilon}} \exp\left[-\left(10 \:\frac{x-ct}{L}\right)^2\right]\\
+    v_2(x, t) = \frac{1}{2\sqrt{\mu}} E(x+ct, 0) - \frac{1}{2\sqrt{\varepsilon}} H(x+ct, 0) = \frac{-1}{2\sqrt{\varepsilon}} \exp\left[-\left(10 \: \frac{x+ct}{L}\right)^2\right]
+\end{align*}
+
+We can finally retrieve the fields $E(x,t)$ and $H(x,t)$ thanks to the change of basis $S$:
+\begin{align*}
+    \begin{pmatrix}
+    E(x,t) \\ H(x, t)
+    \end{pmatrix} =
+    \begin{pmatrix}
+    \sqrt{\mu}& \sqrt{\mu} \\
+    \sqrt{\varepsilon} & -\sqrt{\varepsilon}
+    \end{pmatrix}
+    \begin{pmatrix}
+    v_1(x,t) \\ v_2(x, t)
+    \end{pmatrix}
+\end{align*}
+
+\section{DG formulation of the PDE's}
+If we multiply equations \eqref{eq:pde1} and \eqref{eq:pde2} on each element $D^k$ by a test function $\mathcal{P}_j^k(x)$ and integrate it over $D^k$, we get
+{\small
+\begin{align*}
+    %\begin{cases}
+    \int_{D^k} \varepsilon^k \partial_t E_h^k(x,t) \mathcal{P}_j^k(x) dx + \int_{D^k} \partial_x H_h^k(x,t) \mathcal{P}_j^k(x) dx &= 0 \\[2pt]
+    \int_{D^k} \mu^k \partial_t H_h^k(x,t) \mathcal{P}_j^k(x) dx + \int_{D^k} \partial_x E_h^k(x,t) \mathcal{P}_j^k(x) dx &= 0
+    %\end{cases}
+\end{align*}
+}
+Using a change of variables from $x$ to $\xi$, and integrating by part the second term, we get
+
+{\small
+\begin{align*}
+    %\begin{cases}
+    \int\limits_{-1}^{1} \varepsilon^k \frac{\Delta x}{2} \partial_t E_h^k(x(\xi),t) \mathcal{P}_j(\xi) d\xi - \int\limits_{-1}^{1} H_h^k(x(\xi),t) \mathcal{P}_j'(\xi) d\xi + H_h^k(x^{k+1},t) \mathcal{P}_j(1) - H_h^k(x^k,t) \mathcal{P}_j(-1) &= 0 \\
+    \int\limits_{-1}^{1} \mu^k \frac{\Delta x}{2} \partial_t H_h^k(x(\xi),t) \mathcal{P}_j(\xi) d\xi- \int\limits_{-1}^{1} E_h^k(x(\xi),t) \mathcal{P}_j'(\xi) d\xi + E_h^k(x^{k+1},t) \mathcal{P}_j(1) - E_h^k(x^k,t) \mathcal{P}_j(-1) &= 0
+    %\end{cases}
+\end{align*}
+}
+Finally, plugging the expression of the discrete approximation for $E_h^k$ and $H_h^k$, with constant $\varepsilon^k$ and $\mu^k$ over each domain $D^k$, we get $\forall j \in \{0, \dots p\}$:
+{\small
+\begin{align*}
+    %\begin{cases}
+    \sum\limits_{i=0}^{p} \left[ \varepsilon^k \frac{\Delta x}{2} \partial_t \hat{E}_i^k(t) \int\limits_{-1}^{1} \mathcal{P}_i(\xi) \mathcal{P}_j(\xi) d\xi - \hat{H}_i^k(t) \int\limits_{-1}^{1} \mathcal{P}_i(\xi) \mathcal{P}_j'(\xi) d\xi \right] + H^{k*}(x^{k+1},t) \mathcal{P}_j(1) - H^{k*}(x^k,t) \mathcal{P}_j(-1) &= 0 \\
+    \sum\limits_{i=0}^{p} \left[ \mu^k \frac{\Delta x}{2} \partial_t \hat{H}_i^k(t) \int\limits_{-1}^{1} \mathcal{P}_i(\xi) \mathcal{P}_j(\xi) d\xi- \hat{E}_i^k(t) \int\limits_{-1}^{1} \mathcal{P}_i(\xi) \mathcal{P}_j'(\xi) d\xi \right] + E^{k*}(x^{k+1},t) \mathcal{P}_j(1) - E^{k*}(x^k,t) \mathcal{P}_j(-1) &= 0
+    %\end{cases}
+\end{align*}
+}
+Since we use Legendre polynomials, we have the following expressions for the mass and stiffness matrices \cite[pp. 10, 11]{slides}:
+\begin{align*}
+    M_{ij} = \int_{-1}^{1}\mathcal{P}_i \mathcal{P}_j d\xi = \frac{2\delta_{ij}}{2i+1} \quad \text{and} \quad D_{ij}= \int_{-1}^{1}\mathcal{P}_i \mathcal{P}_j' d\xi = 1 - (-1)^{(i+j)} \quad \text{if $i > j$ and $0$ otherwise}
+\end{align*}
+
+With vectorized fields $\hat{\bm E}^k(t)$ and $\hat{\bm H}^k(t)$, the weak discontinuous Galerkin formulation becomes
+\begin{align*}
+    \varepsilon^k \Delta x \bm M \partial_t \hat{\bm E}^k(t) - \bm D \hat{\bm H}^k(t) + H^{k*}(x^{k+1},t) \bm{\mathcal{P}}(1) - H^{k*}(x^k,t) \bm{\mathcal{P}}(-1) &= 0 \\
+    \mu^k \Delta x \bm M \partial_t \hat{\bm H}^k(t) - \bm D \hat{\bm E}^k(t) + E^{k*}(x^{k+1},t) \bm{\mathcal{P}}(1) - E^{k*}(x^k,t) \bm{\mathcal{P}}(-1) &= 0
+\end{align*}
+
+The numerical fluxes $E^*$ and $H^*$ are computed using the Riemann approach with the procedure described in \cite[p. 39]{DGBook}. But we will also compute these fluxes by ourselves in order to derive the schemes for the different boundary conditions.
+\begin{align*}
+    %\begin{cases}
+    E^* = \frac{1}{\{\!\{Y\}\!\}}\left(\{\!\{YE\}\!\} + \frac{1}{2} [\![H]\!]\right) \qquad \text{and} \qquad
+    H^* = \frac{1}{\{\!\{Z\}\!\}} \left(\{\!\{ZH\}\!\} + \frac{1}{2} [\![E]\!]\right)
+    %\end{cases}
+\end{align*}
+
+
+\subsection{Riemann inside the domain}
+The Riemann invariants can be found with the change of basis that we used in \eqref{eq:basis}. The superscripts $+$ and $-$ refer respectively to the values on the left and on the right of an interface.
+\begin{align*}
+    \frac{1}{\sqrt{\mu^{-}}} E^* + \frac{1}{\sqrt{\varepsilon^{-}}} H^* &= \frac{1}{\sqrt{\mu^{-}}} E^- + \frac{1}{\sqrt{\varepsilon^{-}}} H^- && \text{invariant with speed $+c$}\\
+    \frac{1}{\sqrt{\mu^{+}}} E^* - \frac{1}{\sqrt{\varepsilon^{+}}} H^* &= \frac{1}{\sqrt{\mu^{+}}} E^+ - \frac{1}{\sqrt{\varepsilon^{+}}} H^+ && \text{invariant with speed $-c$}
+\end{align*}
+
+From which we can deduce:
+{\small
+\begin{align*}
+    \left(\sqrt{\frac{\varepsilon^-}{\mu^-}} + \sqrt{\frac{\varepsilon^+}{\mu^+}}\right) E^* = \left(\sqrt{\frac{\varepsilon^-}{\mu^-}}E^- + \sqrt{\frac{\varepsilon^+}{\mu^+}}E^+\right) + \left(H^- - H^+\right)\\
+    \left(\sqrt{\frac{\mu^-}{\varepsilon^-}} + \sqrt{\frac{\mu^+}{\varepsilon^+}}\right) H^* = \left(\sqrt{\frac{\mu^-}{\varepsilon^-}}H^- + \sqrt{\frac{\mu^+}{\varepsilon^+}}H^+\right) + \left(E^- - E^+\right)
+\end{align*}
+}
+
+\subsection{Riemann invariants for reflective boundary conditions}
+In the reflective case, we have to switch the invariants. Here, the superscript $a$ denotes $+$ if we consider the left boundary at $x=-L$ and $-$ for the right boundary at $x=L$.
+\begin{align*}
+    \sfrac{1}{\sqrt{\mu^{a}}} E^* + \sfrac{1}{\sqrt{\varepsilon^{a}}} H^* &= \sfrac{1}{\sqrt{\mu^{a}}} E^a - \sfrac{1}{\sqrt{\varepsilon^{a}}} H^a\\
+    \sfrac{1}{\sqrt{\mu^{a}}} E^* - \sfrac{1}{\sqrt{\varepsilon^{a}}} H^* &= \sfrac{1}{\sqrt{\mu^{a}}} E^a + \sfrac{1}{\sqrt{\varepsilon^{a}}} H^a\\
+    \implies E^* = E^a \qquad &\text{and} \qquad H^* = -H^a
+\end{align*}
+
+\subsection{Riemann invariants for non-reflective boundary conditions}
+In the non-reflective case, we set to zero the invariant coming from outside the domain. For example, let us take the right boundary of the domain:
+\begin{align*}
+    \sfrac{1}{\sqrt{\mu^{-}}} E^* + \sfrac{1}{\sqrt{\varepsilon^{-}}} H^* &= \sfrac{1}{\sqrt{\mu^{-}}} E^- - \sfrac{1}{\sqrt{\varepsilon^{-}}} H^-\\
+    \sfrac{1}{\sqrt{\mu^{+}}} E^* - \sfrac{1}{\sqrt{\varepsilon^{+}}} H^* &= 0\\
+    \implies E^* = \frac{1}{2}E^- + \frac{1}{2}\sqrt{\frac{\mu^-}{\varepsilon^-}} H^- \qquad &\text{and} \qquad H^* = \frac{1}{2} \sqrt{\frac{\varepsilon^-}{\mu^-}} E^- + \frac{1}{2}H^-
+\end{align*}
+
+
+\section{Propagation through glass and air}
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/glass_block.svg}
+    \caption{Propagation of the waves in different materials: the section made of glass is greyed in the center and the section outside is made of air. The parameters are $L \approx \SI{3.0e+8}{\m}$, $\varepsilon_{\text{air}} \approx \SI[per-mode=symbol]{8.854e-12}{\farad\per\m}$, $\varepsilon_{\text{glass}}=5 \cdot \varepsilon_{\text{air}}$, $\mu_{\text{air}} = \mu_{\text{glass}} = 4 \pi \times 10^{-7}\text{ H/m}$, $n=10$, $\Delta t= \SI{0.005}{\s}$, $p=3$.}
+    \label{fig:glass}
+\end{figure}
+In order to simulate the propagation of the wave through glass and air, we need to know the properties $\varepsilon$ and $\mu$ of these materials. For the air, these constants are almost identical to the vacuum. In the case of the glass, the relative permittivity is about $5$ \cite{wiki}, and the relative permeability is almost $1$. We used non-reflective boundary conditions.
+
+At the interfaces between air and glass, we observe that the wave is transmitted, but it is also reflected since it does not propagate at the same speed in the two media. The closer the speeds, the more the wave is transmitted. Between the third and last row, we can observe that the part of the wave that was transmitted went outside the domain, while a smaller wave with less energy was trapped inside the glass.
+
+
+\section{Comparison between numerical and analytical solutions}
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/comparison_reflective.svg}
+    \caption{Behavior of the numerical solution compared to the analytical solution in the reflective case. The parameters are $L \approx \SI{3.0e+8}{\m}$, $\varepsilon \approx \SI[per-mode=symbol]{8.854e-12}{\farad\per\m}$, $\mu = 4 \pi \times 10^{-7}\text{ H/m}$, $n=10$, $\Delta t= \SI{0.005}{\s}$, $p=3$.}
+    \label{fig:reflective}
+\end{figure}
+
+\vspace{-4mm}
+First, since we have a wave equation, the theory predicts that the initial profile of $E$ and $H$ (in the case of zero initial velocity: $\dv{E}{t}(0)=0$) will split in two components moving at speed $c$: half going to the left, and half going to the right. This is what we observe in the successive plots of figure \ref{fig:reflective}.
+
+Secondly, the analytical solution was obtained for an infinite domain, while this numerical solution has a reflective boundary condition. Hence, once the wave hits the wall at $\pm L$ (third and fourth rows in figure \ref{fig:reflective}), its behavior changes completely with respect to the analytical solution that just continues at speed $\pm c$ and leaves the domain.
+
+Finally, we observe that the two fields are not reflected in the same way.
+\begin{itemize}[topsep=0pt, label=---]
+    \item the electric field $E(x,t)$ keeps its sign after the reflection.
+    \item the magnetic field $H(x,t)$ changes its sign after the reflection.
+\end{itemize}
+This comes from the Riemann invariants that we derived earlier: $E^* = E^a$ and $H^* = -H^a$.
+
+\section{Implementation of a non-reflective BC}
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/comparison_infinite.svg}
+    \caption{Behavior of the numerical solution compared to the analytical solution in the non-reflective case. The parameters are $L \approx \SI{3.0e+8}{\m}$, $\varepsilon \approx \SI[per-mode=symbol]{8.854e-12}{\farad\per\m}$, $\mu = 4 \pi \times 10^{-7}\text{ H/m}$, $n=10$, $\Delta t= \SI{0.005}{\s}$, $p=3$.}
+    \label{fig:infinite}
+\end{figure}
+\vspace{-3mm}
+In figure \ref{fig:infinite}, we investigate the solution of the wave equation with a non-reflective boundary condition. This time, the analytical and numerical solution appear identical.
+
+\vspace{-3mm}
+\nocite{*}
+\printbibliography
+
+\end{document}

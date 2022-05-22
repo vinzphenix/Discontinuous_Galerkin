@@ -276,7 +276,7 @@ def plot_function(u, L, n, eps, mu, dt, m, p, f0_list, save=False, bctype="Refle
 
     if save:
         writerMP4 = FFMpegWriter(fps=fps)
-        anim.save(f"./Figures/anim.mp4", writer=writerMP4)
+        anim.save(f"./figures/anim.mp4", writer=writerMP4)
     else:
         # to get only one frame at t = i
         # i = 0 ; init() ; animate(i)

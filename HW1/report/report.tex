@@ -1,0 +1,124 @@
+\documentclass[11 pt]{article}
+\usepackage{structure}
+
+
+\title{LMECA2300 - Advanced numerical methods - Assignment 1}
+\author{
+    DEGROOFF\\ Vincent\\ 09341800
+    \and
+    HENNEFFE\\ Christophe\\ 14831800
+    \and
+    MOUSAVI BAYGI\\ Seyedeh Toktam\\ 08172101
+}
+\date{Monday 21 February 2022}
+
+\begin{document}
+
+\maketitle
+
+\section{Analytical solution using the method of characteristics}
+
+Let us analytically solve the problem of finding $u(x,t)$ such that
+\begin{align*}
+    \partial_t u + c \partial_x u &= 0\\[2pt]
+    u(x,0) &= f(x) && \text{initial condition}\\[2pt]
+    u(x,t) &= u(L,t) && \text{periodic boundary condition}
+\end{align*}
+
+Using the method of characteristics, it is first needed to know the solution along a parametric curve (also called a Cauchy arc) $\Gamma = (x(s), t(s))$. Here, the initial condition and boundary condition allow us to define such a curve. Indeed, the solution is known along the following Cauchy arc:
+\[\Gamma = (x(s) = s, t(s) = 0)\]
+Along the characteristic direction, we have the relation $dx = c~dt$. This allows to find the characteristic curves
+\[\int_{s}^{x}dx = c\int_{0}^{t}dt \implies x-s = ct\]
+
+Finally, it remains to solve the compatibility relation along the characteristic curve to get the solution:
+\[du = 0\]
+Here, this relation means that the solution is conserved along the characteristic curve. The solution is therefore
+\[u(x,t) = f(s) = f(x-ct)\]
+
+\section{Stable time step size}
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.9\textwidth]{../figures/stable_time_step.svg}
+    \caption{Maximum time step that ensures a stable scheme for \texttt{RK44} depending on the spatial discretization $\Delta x$ and the order $p$ of the Legendre polynomial. They are represented on a log-log plot. The other parameters are $L=\qty[per-mode = symbol]{1}{\m}$, $c=\qty[per-mode = symbol]{1}{\m\per\s}$. The numerical integration was done using \texttt{RK44}.}
+    \label{fig:step_size}
+\end{figure}
+
+This analysis was done for a centered scheme, i.e. $a=0$. The values of $\Delta t$ were obtained by trial and error for multiple values of $n$ and $p$.
+
+We observe in figure \ref{fig:step_size} that $\Delta t$ and $\Delta x$ are directly proportional, with a coefficient that depends on $p$:
+\[\Delta t \approx K(p) \cdot \Delta x\]
+
+%The values of $K(p)$ are given in table \ref{tab:coefficients}.
+\begin{table}[H]
+    \label{tab:coefficients}
+    \centering
+    \begin{tabularx}{\textwidth}{@{\extracolsep{\stretch{1}}}*{7}{c}@{}}
+    \toprule
+    $p$ & 0 & 1 & 2 & 3 & 4 & 5\\
+    \midrule
+    $K$ & 2.998 & 0.723 & 0.359 & 0.214 & 0.145 & 0.104\\[2 pt]
+    \bottomrule
+    \end{tabularx}
+    \caption{Values of $K(p)$.}
+\end{table}
+
+
+\section{Qualitative analysis of the numerical solution}
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/sine_20_elems.svg}
+    \caption{Behavior of the numerical solution compared to the analytic solution for the sine function. The parameters are $L=\qty[per-mode = symbol]{1}{\m}$, $c=\qty[per-mode = symbol]{1}{\m\per\s}$, $n=20$, $p=3$.}
+    \label{fig:sin_20_elems}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=0.96\textwidth]{../figures/sine_10_elems.svg}
+    \caption{Behavior of the numerical solution compared to the analytic solution for the sine function. The parameters are $L=\qty[per-mode = symbol]{1}{\m}$, $c=\qty[per-mode = symbol]{1}{\m\per\s}$, $n=10$, $p=1$.}
+    \label{fig:sin_10_elems}
+\end{figure}
+
+In figure \ref{fig:sin_20_elems}, where the initial function is a sine and where there are enough elements with a sufficient polynomial order, the behavior of the numerical solution looks the same for both the centered scheme and the upwind scheme. We observe no loss in amplitude nor any changes in the initial solution profile. The numerical wave seems to propagate at the right velocity $c$. %This method is therefore really well adapted to solve the advection equation when the initial condition is a sine function.
+
+However, when there are not enough elements and/or that the degree of the Legendre polynomials is too low, the situation changes, as shown in figure \ref{fig:sin_10_elems}. For the centered scheme $a=0$, the numerical solution travels faster than $c$ while keeping the right amplitude. For the upwind scheme, it is the opposite: the numerical solution travels at the right velocity but with a decrease of amplitude.
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=0.96\textwidth]{../figures/square.svg}
+    \caption{Behavior of the numerical solution compared to the analytic solution for the step function. The parameters are $L=\qty[per-mode = symbol]{1}{\m}$, $c=\qty[per-mode = symbol]{1}{\m\per\s}$, $n=20$, $p=3$.}
+    \label{fig:step_function}
+\end{figure}
+
+%The behavior is not as perfect when the initial condition is a step function. We already notice that the initial solution profile does not perfectly match the the step function. This is expected since we can't perfectly approximate these kind of discontinuous function with polynomials.  %% it can if the discontinuity happens at an interface between 2 elements
+
+In figure \ref{fig:step_function}, we focus on the case of a step function. As seen during the lecture and in the previous figures, the centered scheme doesn't produce any dissipation. Therefore, the unresolved waves are being kept alive, and they end up polluting the solution.
+
+This problem is not present when we use the upwind scheme, since it is dissipative. The unresolved waves are being damped over time.
+
+
+% f = sin(2 pi x / L)
+% f = step fct
+
+
+
+\section{Numerical analysis of the energy}
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/energy_evolution_10_new.svg}
+    \caption{Evolution of the energy of the numerical solution with 3 different initial conditions on the left. The parameters are $L=\qty[per-mode = symbol]{1}{\m}$, $n=10$, $p=3$, $c=\qty[per-mode = symbol]{1}{\m\per\s}$ , $\Delta t=\qty[per-mode = symbol]{2.181e-03}{\s}$. The numerical integration was done using \texttt{RK44}.}
+    \label{fig:energy}
+\end{figure}
+
+The energy in figure \ref{fig:energy} was computed by numerical integration of the solution $\left[u^k(x, t)\right]^2$ on the interval $[0, L]$.
+
+As expected, when $a=0$, the energy is conserved. When $a < 0$, the energy increases exponentially. This is the reason why we did not represent it on the figure. When $a > 0$, we can observe that the energy decreases. However, the decrease does not seem to be proportional to $a$ since the energy of the sine wave decreases faster with $a=0.5$ than $a=1$.
+
+Moreover, since waves with high wavenumbers are quickly "killed", the energy of the triangular and square wave quickly decreases and by a larger amount than in the case of the sine wave.
+
+
+
+\nocite{*}
+\printbibliography
+
+\end{document}

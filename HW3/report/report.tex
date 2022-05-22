@@ -1,0 +1,145 @@
+\documentclass[11 pt]{article}
+\usepackage{structure}
+
+
+\title{LMECA2300 - Advanced numerical methods - Assignment 3}
+\author{
+    DEGROOFF\\ Vincent\\ 09341800
+    \and
+    HENNEFFE\\ Christophe\\ 14831800
+    \and
+    MOUSAVI BAYGI\\ Seyedeh Toktam\\ 08172101
+}
+\date{Thursday 18 April 2022}
+
+\begin{document}
+
+\maketitle
+
+\section{Zalezak disk}
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/zalezak_overview.svg}
+    \caption{Position of the notched disk at different time. The mesh sizes are $h=8$, $h=6$ and $h=4$. The level curve is drawn for $\phi=0.5$ at $t=0$, $t=157$, $t=314$, $t=471$ and $t=628$ respectively in blue, orange, green, red and purple.}
+    \label{fig:zalezak}
+\end{figure}
+
+The initial condition we used for $\phi(x,y,t=0)$ makes a smooth transition from $\phi = 0$ outside the disk, to $\phi = 1$ inside the disk, with the following expression:
+\[
+\phi(x,y,t=0) = 0.5 \left(1 - \tanh(d / \alpha)\right)
+\]
+where $d$ is the signed distance from $(x,y)$ to the disk ($d<0$ inside, $d>0$ outside), and where $\alpha=1/3$ is a parameter proportional to the width of the transition.
+
+In figure \ref{fig:zalezak}, we observe that the notched disk comes back to its initial position at $t=628$ for every combination of mesh size $h$ and order $p$. However, the conservation of the initial shape of the notched disk heavily depends on the parameters. For example, with $p=1$, the notched part of the disk is dissipated after a full revolution for the three mesh sizes. If one decides to increase the order, it greatly improves the conservation of the initial shape.
+
+In table \ref{tab:area}, we compute the change of area of the notched disk between $t=0$ and $t=628$ when the disk completes a full revolution.
+%The area of the disk after a revolution can be computed and compared to the initial area
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth} {
+      | >{\centering\arraybackslash}X
+      || >{\centering\arraybackslash}X
+      | >{\centering\arraybackslash}X
+      | >{\centering\arraybackslash}X
+      | >{\centering\arraybackslash}X
+      | >{\centering\arraybackslash}X| }
+     \hline
+      &  $p=1$ & $p=2$ & $p=3$ & $p=4$ & $p=5$ \\
+     \hline \hline
+     $h=8$ &\phantom{-}8.62 &  \phantom{-}1.74 & \phantom{-}4.19 & \phantom{-}0.42 & \phantom{-}0.44 \\
+     \hline
+     $h=6$  & -1.19 & \phantom{-}1.74 & \phantom{-}0.14 &  -0.89 & -0.58 \\
+     \hline
+      $h=4$  & -6.12 & \phantom{-}3.34 &  -0.84 & \phantom{-}0.35 & \phantom{-}0.65\\
+     \hline
+      $h=2$  & \phantom{-}2.29 &  -0.16 &  \phantom{---}-0.0056 & \phantom{-}0.19 & \phantom{--}-0.035 \\
+     \hline
+    \end{tabularx}
+    \caption{Change of area of the notched disk between $t=0$ and $t=628$, in \%.}
+    \label{tab:area}
+\end{table}
+
+By comparing the initial and final shape of the Zalezak disk, we see that the corners of the notched part of the disk often get smoothed. We can for example observe this on figure \ref{fig:zalezak_zoomed} for $h=2$ and $p=3$.
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=0.5\textwidth]{../figures/zalezak_zoomed.svg}
+    \caption{Initial and final shape for $h=2$ and $p=3$.}
+    \label{fig:zalezak_zoomed}
+\end{figure}
+
+
+We can also compute the accuracy of the interface location by using \cite{marchandise2006quadrature}:
+\[
+\frac{1}{L}\int_{\Omega}\|H\_(\phi_{\textrm{expected}}) - H\_(\phi_{\textrm{computed}})\| d\Omega
+\]
+with $L=144.29$, the perimeter size of the initial interface and $H\_$ is a function that indicates if a point $(x,y)$ lies inside the disk:
+\begin{align*}
+    H\_ (\phi) &=
+    \begin{cases}
+        1 \qquad \phi > 0.5 \\
+        0 \qquad \text{otherwise}
+    \end{cases}
+\end{align*}
+
+The integral is computed numerically. Figure \ref{fig:L1_err} displays the accuracy of the DG scheme to correctly advect the notched disk in terms of both the mesh size $h$ and the polynomial order $p$.
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/L1_errors.svg}
+    \caption{$L_1$ errors of the interface location}
+    \label{fig:L1_err}
+\end{figure}
+
+
+\section{Vortex in a box}
+
+In this part, we used the following velocity field $\bm{u}(x,y) = (u_x, u_y)$, and initial condition $\phi(x,y)$:
+\begin{align*}
+    u_x(x,y) &= \phantom{-} sin(2 \pi y) \, sin(\pi x)^2\\
+    u_y(x,y) &= -sin(2 \pi x) \, sin(\pi y)^2\\
+    \phi(x,y) &= (x-0.5)^2 + (y-0.15)^2 - 0.15^2
+\end{align*}
+
+In figures \ref{fig:vortexLow}, \ref{fig:vortexMid} and \ref{fig:vortexHigh}, the iso-zero level set of $\phi$ is represented at different times, for different polynomial orders and for 3 different mesh sizes.
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/vortex_low_quality.svg}
+    \caption{Iso-contour of $\phi=0$, with a \textit{low} quality mesh: $h=0.1$.}
+    \label{fig:vortexLow}
+\end{figure}
+
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/vortex_mid_quality.svg}
+    \caption{Iso-contour of $\phi=0$, with a \textit{medium} quality mesh: $h=0.05$.}
+    \label{fig:vortexMid}
+\end{figure}
+
+
+\begin{figure}[H]
+    \centering
+    \includesvg[width=\textwidth]{../figures/vortex_high_quality.svg}
+    \caption{Iso-contour of $\phi=0$, with a \textit{high} quality mesh: $h=0.033$.}
+    \label{fig:vortexHigh}
+\end{figure}
+
+First, we observe that linear shape functions never give sufficient results for all three mesh sizes. An even smaller mesh size is necessary in order to obtain better results, for example $h=0.02$ works. But even with that mesh size, the solution near the boundary of the domain is coarse.
+
+Secondly, as expected, the quality of the solution at $t=4$ increases with the number of triangles. The quality also increases with the order of the Lagrange polynomials since we do not use very high orders that would have a too large Lebesgue constant $\Lambda$.
+
+Finally, we also simulated the vortex with a reversible velocity field of period $T=8$
+\[
+\bm{\Tilde{u}}(x,y,t) = \bm{u}(x, y) \cos{(\pi t / T)}
+\]
+The results of this simulation for $t \in [0,T]$ are available as \texttt{.gif} files in the directory \texttt{Animation}. On that video, we observe that at $t=T$, $\phi$ gets back to its initial value.
+
+Animations with other vector fields are available as well in the same directory.
+
+\nocite{*}
+\printbibliography
+
+\end{document}

@@ -1,3 +1,14 @@
 __pycache__/
 *.jpg
 *.pyc
+
+# Latex
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.gz
+*.log
+*.out
+*.xml
+svg-inkscape/
